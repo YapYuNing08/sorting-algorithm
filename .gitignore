@@ -1,0 +1,11 @@
+# Ignore the massive dataset files
+datasets/
+*.csv
+
+# Ignore compiled executables
+*.exe
+
+# Ignore VS Code specific settings (optional but good practice)
+.vscode/
+
+CLAUDE.md
