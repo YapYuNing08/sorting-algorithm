@@ -22,15 +22,18 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <direct.h>
 using namespace std;
 
-// ---- Data record ----------------------------------------
+#define MAKE_DIR(d) _mkdir(d)
+
+// Data record
 struct Record {
     long long key;
     string    str;
 };
 
-// ---- Read CSV rows [startRow, endRow] (1-indexed) -------
+// Read CSV rows [startRow, endRow] (1-indexed) 
 // Returns false if file cannot be opened.
 bool loadRows(const string& filename,
               long long startRow, long long endRow,
@@ -60,7 +63,7 @@ bool loadRows(const string& filename,
     return true;
 }
 
-// ---- Write one snapshot line to the output file ---------
+// Write one snapshot line to the output file
 void writeSnapshot(ofstream& fout,
                    const vector<Record>& arr,
                    const string& label)
@@ -73,7 +76,7 @@ void writeSnapshot(ofstream& fout,
     fout << "] " << label << '\n';
 }
 
-// ---- Counting sort on a single decimal digit position ---
+// Counting sort on a single decimal digit position 
 // digitPos: 1 = units, 2 = tens, ..., 10 = billions place
 void countingSortByDigit(vector<Record>& arr, int digitPos)
 {
@@ -102,7 +105,7 @@ void countingSortByDigit(vector<Record>& arr, int digitPos)
     arr = output;
 }
 
-// ---- Radix sort with step output ------------------------
+// Radix sort with step output
 // All integers are 10-digit (1,000,000,000 to 9,999,999,999)
 // so we always process exactly 10 digit positions.
 void radixSortStep(vector<Record>& arr, ofstream& fout)
@@ -124,10 +127,9 @@ void radixSortStep(vector<Record>& arr, ofstream& fout)
     }
 }
 
-// ---- Main -----------------------------------------------
 int main()
 {
-    // ---- Input: dataset file ----
+    // Input: dataset file
     // Uncomment ONE line only. Tutor may specify a different file during demo.
     // string datasetFile = "datasets/dataset_1000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
@@ -136,14 +138,14 @@ int main()
     // string datasetFile = "datasets/dataset_1000000.csv";
     string datasetFile = "datasets/dataset_1000.csv";
 
-    // ---- Input: start row (row number in CSV file, 1-indexed) ----
+    // Input: start row (row number in CSV file, 1-indexed)
     // Uncomment ONE line only. Tutor specifies in the code file during demo.
     // long long startRow = 1;
     // long long startRow = 3;
     // long long startRow = 5;
     long long startRow = 1;
 
-    // ---- Input: end row ----
+    // Input: end row
     // Uncomment ONE line only. Tutor specifies in the code file during demo.
     // long long endRow = 7;
     // long long endRow = 10;
@@ -177,8 +179,9 @@ int main()
     }
 
     // Build output filename:
-    // dataset_<n>_radix_sorted_step_<startRow>_<endRow>.txt
-    string outName = "dataset_" + to_string(n)
+    // outputs/dataset_<n>_radix_sorted_step_<startRow>_<endRow>.txt
+    MAKE_DIR("outputs");
+    string outName = "outputs/dataset_" + to_string(n)
                    + "_radix_sorted_step_"
                    + to_string(startRow) + "_"
                    + to_string(endRow) + ".txt";
