@@ -22,15 +22,18 @@
 #include <vector>
 #include <chrono>
 #include <cstdlib>
+#include <direct.h>
 using namespace std;
 
-// ---- Data record ----------------------------------------
+#define MAKE_DIR(d) _mkdir(d)
+
+// Data record
 struct Record {
     long long key;
     string    str;
 };
 
-// ---- Read entire CSV file --------------------------------
+// Read entire CSV file 
 bool loadDataset(const string& filename, vector<Record>& out)
 {
     ifstream fin(filename);
@@ -53,7 +56,7 @@ bool loadDataset(const string& filename, vector<Record>& out)
     return true;
 }
 
-// ---- Counting sort on a single decimal digit position ---
+// Counting sort on a single decimal digit position
 // digitPos: 1 = units place, 10 = billions place
 void countingSortByDigit(vector<Record>& arr, int digitPos)
 {
@@ -78,7 +81,7 @@ void countingSortByDigit(vector<Record>& arr, int digitPos)
     arr = output;
 }
 
-// ---- Full radix sort (10 digit positions) ---------------
+// Full radix sort (10 digit positions) 
 // Sorts arr in ascending order by the integer key.
 // Time complexity:  O(d * (n + k)) where d=10, k=10 -> O(n)
 // Space complexity: O(n + k)
@@ -89,10 +92,10 @@ void radixSort(vector<Record>& arr)
         countingSortByDigit(arr, digitPos);
 }
 
-// ---- Main -----------------------------------------------
+
 int main()
 {
-    // ---- Input: dataset filename ----
+    // Input: dataset filename 
     // Uncomment ONE line only for the desired input size.
     string datasetFile = "datasets/dataset_1000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
@@ -106,7 +109,7 @@ int main()
     // string datasetFile = "datasets/dataset_500000000.csv";
     // string datasetFile = "datasets/dataset_1000.csv";
 
-    // ---- Load data (I/O excluded from timing) ------------
+    // Load data (I/O excluded from timing)
     vector<Record> arr;
     if (!loadDataset(datasetFile, arr)) {
         cerr << "Error: cannot open " << datasetFile << "\n";
@@ -114,23 +117,24 @@ int main()
     }
     long long n = (long long)arr.size();
 
-    // ---- Sort and measure --------------------------------
+    // Sort and measure
     auto t1 = chrono::high_resolution_clock::now();
     radixSort(arr);
     auto t2 = chrono::high_resolution_clock::now();
 
     double elapsed = chrono::duration<double>(t2 - t1).count();
 
-    // ---- Print running time to console -------------------
+    // Print running time to console
     cout << "Input file  : " << datasetFile << "\n";
     cout << "Input size  : " << n << "\n";
     cout << "Running time: " << elapsed << " seconds\n";
 
-    // ---- Build output filename ---------------------------
-    // radix_sorted_dataset_<n>.csv
-    string outName = "radix_sorted_dataset_" + to_string(n) + ".csv";
+    // Build output filename
+    // outputs/radix_sorted_dataset_<n>.csv
+    MAKE_DIR("outputs");
+    string outName = "outputs/radix_sorted_dataset_" + to_string(n) + ".csv";
 
-    // ---- Write sorted output (I/O excluded from timing) --
+    // Write sorted output (I/O excluded from timing) 
     ofstream fout(outName);
     if (!fout.is_open()) {
         cerr << "Error: cannot create " << outName << "\n";
