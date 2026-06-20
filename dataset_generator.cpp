@@ -28,8 +28,8 @@ struct HashSet {
 };
 
 int main(int argc, char* argv[]) {
-    // Leader ID: 242UC242LB -> 2421324222
-    srand((unsigned int)2421324222U);
+    // Leader ID: 242UC244KD -> 2421324414
+    srand((unsigned int)2421324414U);
 
     if (argc < 2) {
         cerr << "Usage: " << argv[0] << " <n>\n";
