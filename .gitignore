@@ -1,6 +1,7 @@
 # Ignore the massive dataset files
 datasets/
 *.csv
+*.txt
 
 # Ignore compiled executables
 *.exe
