@@ -93,10 +93,11 @@ void radixSort(vector<Record>& arr)
 }
 
 
-int main()
+int main(int argc, char* argv[])
 {
-    // Input: dataset filename 
+    // Input: dataset filename
     // Uncomment ONE line only for the desired input size.
+    // string datasetFile = "datasets/dataset_1000.csv";
     string datasetFile = "datasets/dataset_2000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
     // string datasetFile = "datasets/dataset_100000.csv";
@@ -106,8 +107,11 @@ int main()
     // string datasetFile = "datasets/dataset_10000000.csv";
     // string datasetFile = "datasets/dataset_50000000.csv";
     // string datasetFile = "datasets/dataset_100000000.csv";
-    // string datasetFile = "datasets/dataset_500000000.csv";
-    // string datasetFile = "datasets/dataset_1000.csv";
+
+    // Optional: allow command prompt input also, for easier experiment runs.
+    // Example: radix_sort.exe datasets/dataset_10000.csv
+    if (argc >= 2)
+        datasetFile = argv[1];
 
     // Load data (I/O excluded from timing)
     vector<Record> arr;
