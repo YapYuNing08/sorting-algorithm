@@ -136,7 +136,7 @@ int main()
     // string datasetFile = "datasets/dataset_100000.csv";
     // string datasetFile = "datasets/dataset_500000.csv";
     // string datasetFile = "datasets/dataset_1000000.csv";
-    string datasetFile = "datasets/dataset_1000.csv";
+    string datasetFile = "datasets/dataset_2000.csv";
 
     // Input: start row (row number in CSV file, 1-indexed)
     // Uncomment ONE line only. Tutor specifies in the code file during demo.
