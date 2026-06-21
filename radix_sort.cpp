@@ -97,7 +97,7 @@ int main()
 {
     // Input: dataset filename 
     // Uncomment ONE line only for the desired input size.
-    string datasetFile = "datasets/dataset_1000.csv";
+    string datasetFile = "datasets/dataset_2000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
     // string datasetFile = "datasets/dataset_100000.csv";
     // string datasetFile = "datasets/dataset_500000.csv";
