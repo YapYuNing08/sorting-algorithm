@@ -1,19 +1,19 @@
 // *********************************************************
 // Program: hash_table_search.cpp
 // Course: CCP6214 Algorithm Design and Analysis
-// Lecture Class: TC4L
-// Tutorial Class: T13L
+// Lecture Class: TC2L
+// Tutorial Class: TT8L
 // Trimester: 2610
-// Member_1: ID | NAME | EMAIL | PHONE
-// Member_2: ID | NAME | EMAIL | PHONE
-// Member_3: ID | NAME | EMAIL | PHONE
-// Member_4: ID | NAME | EMAIL | PHONE
+// Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
+// Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
+// Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
+// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
 // *********************************************************
 // Task Distribution
-// Member_1:
-// Member_2:
-// Member_3:
-// Member_4:
+// Member_1: Radix sort algorithm
+// Member_2: Heap sort algorithm
+// Member_3: Hash table search algorithm
+// Member_4: Dataset generator
 // *********************************************************
 
 #include <iostream>
