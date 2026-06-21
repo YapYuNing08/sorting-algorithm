@@ -26,7 +26,7 @@ using namespace std;
 #define MAKE_DIR(d) _mkdir(d)
 
 // Hand-implemented hash set: open addressing with linear probing.
-// Sentinel 0 is safe � all valid integers are >= 1,000,000,000.
+// Sentinel 0 is safe, all valid integers are >= 1,000,000,000.
 struct HashSet {
     long long* table;
     size_t capacity;
