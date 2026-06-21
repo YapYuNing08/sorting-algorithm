@@ -23,16 +23,19 @@
 #include <chrono>
 #include <cstdlib>
 #include <iomanip>
+#include <direct.h>
 using namespace std;
 using namespace chrono;
 
-// ---- Data record ----------------------------------------
+#define MAKE_DIR(d) _mkdir(d)
+
+// Data record
 struct Record {
     long long key;
     string str;
 };
 
-// ---- Read entire CSV file -------------------------------
+// Read entire CSV file
 bool loadDataset(const string& filename, vector<Record>& out)
 {
     ifstream fin(filename);
@@ -57,7 +60,7 @@ bool loadDataset(const string& filename, vector<Record>& out)
     return true;
 }
 
-// ---- Max heapify ----------------------------------------
+// Max heapify
 // Maintains the maxheap property for subtree rooted at index i.
 void maxHeapify(vector<Record>& arr, int heapSize, int i)
 {
@@ -80,7 +83,7 @@ void maxHeapify(vector<Record>& arr, int heapSize, int i)
     }
 }
 
-// ---- Build maxheap --------------------------------------
+// Build maxheap
 void buildMaxHeap(vector<Record>& arr)
 {
     int n = (int)arr.size();
@@ -88,7 +91,7 @@ void buildMaxHeap(vector<Record>& arr)
         maxHeapify(arr, n, i);
 }
 
-// ---- Heap sort using maxheap ----------------------------
+// Heap sort using maxheap
 // Sorts records in ascending order by integer key.
 // Time complexity:  O(n log n)
 // Space complexity: O(1) extra space
@@ -104,7 +107,7 @@ void heapSort(vector<Record>& arr)
     }
 }
 
-// ---- Extract n from dataset filename --------------------
+// Extract n from dataset filename
 long long extractInputSize(const string& datasetFile, long long fallback)
 {
     string base = datasetFile;
@@ -119,12 +122,12 @@ long long extractInputSize(const string& datasetFile, long long fallback)
     return fallback;
 }
 
-// ---- Main -----------------------------------------------
+
 int main(int argc, char* argv[])
 {
-    // ---- Input: dataset filename ----
+    // Input: dataset filename
     // Uncomment ONE line only for the desired input size.
-    // string datasetFile = "datasets/dataset_1000.csv";
+    string datasetFile = "datasets/dataset_2000.csv";
     // string datasetFile = "datasets/dataset_5000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
     // string datasetFile = "datasets/dataset_50000.csv";
@@ -133,14 +136,14 @@ int main(int argc, char* argv[])
     // string datasetFile = "datasets/dataset_1000000.csv";
     // string datasetFile = "datasets/dataset_5000000.csv";
     // string datasetFile = "datasets/dataset_10000000.csv";
-    string datasetFile = "datasets/dataset_50000000.csv";
+    // string datasetFile = "datasets/dataset_50000000.csv";
 
     // Optional: allow command prompt input also, for easier experiment runs.
     // Example: heap_sort.exe datasets/dataset_10000.csv
     if (argc >= 2)
         datasetFile = argv[1];
 
-    // ---- Load data (I/O excluded from timing) ------------
+    // Load data (I/O excluded from timing)
     vector<Record> arr;
     if (!loadDataset(datasetFile, arr)) {
         cerr << "Error: cannot open " << datasetFile << "\n";
@@ -149,24 +152,25 @@ int main(int argc, char* argv[])
 
     long long n = extractInputSize(datasetFile, (long long)arr.size());
 
-    // ---- Sort and measure only heap sort -----------------
+    // Sort and measure only heap sort
     auto t1 = high_resolution_clock::now();
     heapSort(arr);
     auto t2 = high_resolution_clock::now();
 
     double elapsed = duration<double>(t2 - t1).count();
 
-    // ---- Print running time to console -------------------
+    // Print running time to console
     cout << "Input file  : " << datasetFile << "\n";
     cout << "Input size  : " << arr.size() << "\n";
     cout << fixed << setprecision(9);
     cout << "Running time: " << elapsed << " seconds\n";
 
-    // ---- Build output filename ---------------------------
-    // heap_sorted_dataset_<n>.csv
-    string outName = "heap_sorted_dataset_" + to_string(n) + ".csv";
+    //  Build output filename
+    // outputs/heap_sorted_dataset_<n>.csv
+    MAKE_DIR("outputs");
+    string outName = "outputs/heap_sorted_dataset_" + to_string(n) + ".csv";
 
-    // ---- Write sorted output (I/O excluded from timing) --
+    // Write sorted output (I/O excluded from timing)
     ofstream fout(outName);
     if (!fout.is_open()) {
         cerr << "Error: cannot create " << outName << "\n";

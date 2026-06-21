@@ -21,15 +21,18 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <direct.h>
 using namespace std;
 
-// ---- Data record ----------------------------------------
+#define MAKE_DIR(d) _mkdir(d)
+
+// Data record
 struct Record {
     long long key;
     string str;
 };
 
-// ---- Read CSV rows [startRow, endRow] (1-indexed) -------
+// Read CSV rows [startRow, endRow] (1-indexed)
 bool loadRows(const string& filename,
               long long startRow,
               long long endRow,
@@ -60,7 +63,7 @@ bool loadRows(const string& filename,
     return true;
 }
 
-// ---- Write one snapshot line to the output file ---------
+// Write one snapshot line to the output file
 void writeSnapshot(ofstream& fout,
                    const vector<Record>& arr,
                    const string& label)
@@ -73,7 +76,7 @@ void writeSnapshot(ofstream& fout,
     fout << "] " << label << '\n';
 }
 
-// ---- Max heapify ----------------------------------------
+// Max heapify
 void maxHeapify(vector<Record>& arr, int heapSize, int i)
 {
     while (true) {
@@ -95,7 +98,7 @@ void maxHeapify(vector<Record>& arr, int heapSize, int i)
     }
 }
 
-// ---- Build maxheap --------------------------------------
+// Build maxheap
 void buildMaxHeap(vector<Record>& arr)
 {
     int n = (int)arr.size();
@@ -103,7 +106,7 @@ void buildMaxHeap(vector<Record>& arr)
         maxHeapify(arr, n, i);
 }
 
-// ---- Heap sort with step output -------------------------
+// Heap sort with step output
 // The first output line is the initial maxheap.
 // Then each line shows the array after the maximum element is placed at index i.
 void heapSortStep(vector<Record>& arr, ofstream& fout)
@@ -122,7 +125,7 @@ void heapSortStep(vector<Record>& arr, ofstream& fout)
     }
 }
 
-// ---- Extract n from dataset filename --------------------
+// Extract n from dataset filename
 long long extractInputSize(const string& datasetFile, long long fallback)
 {
     string base = datasetFile;
@@ -137,12 +140,11 @@ long long extractInputSize(const string& datasetFile, long long fallback)
     return fallback;
 }
 
-// ---- Main -----------------------------------------------
 int main(int argc, char* argv[])
 {
-    // ---- Input: dataset file ----
+    // Input: dataset file
     // Uncomment ONE line only. Tutor may specify a different file during demo.
-    // string datasetFile = "datasets/dataset_1000.csv";
+    string datasetFile = "datasets/dataset_2000.csv";
     // string datasetFile = "datasets/dataset_5000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
     // string datasetFile = "datasets/dataset_50000.csv";
@@ -151,14 +153,14 @@ int main(int argc, char* argv[])
     // string datasetFile = "datasets/dataset_1000000.csv";
     // string datasetFile = "datasets/dataset_5000000.csv";
     // string datasetFile = "datasets/dataset_10000000.csv";
-    string datasetFile = "datasets/dataset_50000000.csv";
+    // string datasetFile = "datasets/dataset_50000000.csv";
 
-    // ---- Input: start row ----
+    // Input: start row
     long long startRow = 1;
     // long long startRow = 3;
     // long long startRow = 5;
 
-    // ---- Input: end row ----
+    // Input: end row
     long long endRow = 7;
     // long long endRow = 10;
     // long long endRow = 20;
@@ -182,8 +184,9 @@ int main(int argc, char* argv[])
 
     long long n = extractInputSize(datasetFile, (long long)arr.size());
 
-    // dataset_<n>_heap_sorted_step_<startRow>_<endRow>.txt
-    string outName = "dataset_" + to_string(n)
+    // outputs/dataset_<n>_heap_sorted_step_<startRow>_<endRow>.txt
+    MAKE_DIR("outputs");
+    string outName = "outputs/dataset_" + to_string(n)
                    + "_heap_sorted_step_"
                    + to_string(startRow) + "_"
                    + to_string(endRow) + ".txt";
