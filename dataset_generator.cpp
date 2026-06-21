@@ -1,3 +1,21 @@
+// *********************************************************
+// Program: dataset_generator.cpp.cpp
+// Course: CCP6214 Algorithm Design and Analysis
+// Lecture Class: TC2L
+// Tutorial Class: TT8L
+// Trimester: 2610
+// Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
+// Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
+// Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
+// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
+// *********************************************************
+// Task Distribution
+// Member_1: Radix sort algorithm
+// Member_2: Heap sort algorithm
+// Member_3: Hash table search algorithm
+// Member_4: Dataset generator
+// *********************************************************
+
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
