@@ -1,5 +1,5 @@
 // *********************************************************
-// Program: hash_table_search.cpp
+// Program: hash_table_search_linear.cpp
 // Course: CCP6214 Algorithm Design and Analysis
 // Lecture Class: TC2L
 // Tutorial Class: TT8L
@@ -16,12 +16,16 @@
 // Member_4: Dataset generator
 // *********************************************************
 //
-// Collision resolution: SEPARATE CHAINING using a singly linked list
-// per bucket. Each table slot holds the head of a linked list of records
-// whose integer keys hashed to that slot.
-// (The array-based vs linked-list-based AVL BST comparison is discussed
-//  THEORETICALLY in the report's conclusion only; the implemented table
-//  uses linked-list chaining.)
+// Collision resolution: LINEAR PROBING (open addressing). Every record is
+// stored directly in the table array (no linked lists). On collision we walk
+// forward one slot at a time -- (home + 1), (home + 2), ... wrapping around --
+// until an empty slot (insert) or the matching key (search) is found.
+// Probe distance is measured in slots examined: 1 = found at the home slot.
+//
+// Because open addressing stores n records inside the array itself, the table
+// MUST be larger than n (load factor < 1) or insertion cannot terminate. We
+// size it as nextPrime(2n), giving a load factor near 0.5 to keep probe
+// sequences short.
 // *********************************************************
 
 #include <iostream>
@@ -41,36 +45,21 @@ using namespace chrono;
 
 struct Record { long long key; string str; };
 
-// ─── Singly Linked List Node ─────────────────────────────
-struct Node {
+// ─── Hash Table (linear probing / open addressing) ───────
+struct Slot {
     Record data;
-    Node* next;
-    Node(Record r) : data(r), next(nullptr) {}
-};
-
-// ─── Hash Table (linked-list chaining) ───────────────────
-struct HashSlot {
-    Node* head;
-    int chainLen;
-    HashSlot() : head(nullptr), chainLen(0) {}
-    ~HashSlot() {
-        Node* curr = head;
-        while (curr) {
-            Node* temp = curr->next;
-            delete curr;
-            curr = temp;
-        }
-    }
+    bool occupied;
+    Slot() : occupied(false) {}
 };
 
 class HashTable {
 public:
-    HashSlot* table;
+    Slot* table;
     int tableSize;
 
     HashTable(int size) {
         tableSize = size;
-        table = new HashSlot[tableSize];
+        table = new Slot[tableSize];
     }
     ~HashTable() { delete[] table; }
 
@@ -78,28 +67,40 @@ public:
 
     void insert(Record r) {
         int i = hf(r.key);
-        Node* curr = table[i].head;
-        while (curr) {                      // skip duplicate keys
-            if (curr->data.key == r.key) return;
-            curr = curr->next;
+        while (table[i].occupied) {
+            if (table[i].data.key == r.key) return;   // skip duplicate keys
+            i++;
+            if (i == tableSize) i = 0;                 // wrap around
         }
-        Node* newNode = new Node(r);
-        newNode->next = table[i].head;      // prepend
-        table[i].head = newNode;
-        table[i].chainLen++;
+        table[i].data = r;
+        table[i].occupied = true;
     }
 
     bool search(long long tgt) const {
-        Node* curr = table[hf(tgt)].head;
-        while (curr) {
-            if (tgt == curr->data.key) return true;
-            curr = curr->next;
+        int i = hf(tgt);
+        while (table[i].occupied) {
+            if (table[i].data.key == tgt) return true;
+            i++;
+            if (i == tableSize) i = 0;
         }
-        return false;
+        return false;                                  // hit an empty slot
+    }
+
+    // Number of slots examined to FIND tgt (>=1), or 0 if not present.
+    int probeLength(long long tgt) const {
+        int i = hf(tgt);
+        int probes = 1;
+        while (table[i].occupied) {
+            if (table[i].data.key == tgt) return probes;
+            i++;
+            if (i == tableSize) i = 0;
+            probes++;
+        }
+        return 0;
     }
 };
 
-// ─── Prime helpers (table size = next prime >= n) ────────
+// ─── Prime helpers (table size = next prime >= 2n) ───────
 bool isPrime(int num) {
     if (num <= 1) return false;
     if (num <= 3) return true;
@@ -117,12 +118,6 @@ int nextPrime(int num) {
         if (isPrime(p)) return p;
         p += 2;
     }
-}
-
-// Last node in a chain (the deepest element = worst-case search position).
-long long tailKey(Node* head) {
-    while (head->next) head = head->next;
-    return head->data.key;
 }
 
 vector<Record> loadCSV(const string& fn) {
@@ -166,28 +161,35 @@ int main(int argc, char* argv[]) {
     cout << "Dataset loaded: " << n << " elements" << endl;
 
     // Build hash table (not timed).
-    // Table size = next prime >= n keeps the average chain length near 1.
-    int dynamicTableSize = nextPrime(n);
+    // Open addressing needs spare slots; size = next prime >= 2n keeps the
+    // load factor near 0.5 so probe sequences stay short.
+    int dynamicTableSize = nextPrime(2 * n);
     HashTable ht(dynamicTableSize);
     for (const Record& r : data) ht.insert(r);
 
-    // ── Build per-case search key sets (one key per non-empty bucket) ──
-    // All three sets are spread across the whole table, so they share the
-    // SAME cache behaviour; the only difference is the search DEPTH:
-    //   Best  -> chain HEAD key  (1 comparison,            O(1))
-    //   Worst -> chain TAIL key  (chainLen comparisons,    O(chainLen))
+    // ── Build per-case search key sets ──
+    // Unlike chaining (where depth = chain length), linear-probing depth is
+    // the PROBE DISTANCE: slots walked from the home slot until the key is hit.
+    //   Best  -> keys found at their home slot       (1 probe,        O(1))
+    //   Worst -> keys with the maximum probe distance (O(longest run))
     //   Avg   -> every dataset key once
-    // (If we instead searched a single key repeatedly, that key would stay
-    //  hot in cache and read FASTER than the cache-cold average sweep — a
-    //  misleading ordering. Spreading every case across all buckets removes
-    //  that artifact so the timing reflects chain depth, not cache locality.)
-    vector<long long> bestPool, worstPool;
-    for (int i = 0; i < dynamicTableSize; i++) {
-        Node* head = ht.table[i].head;
-        if (!head) continue;
-        bestPool.push_back(head->data.key);   // first node in chain
-        worstPool.push_back(tailKey(head));   // last node in chain
+    // Spreading every case across all home slots keeps cache behaviour the
+    // same, so timing reflects probe depth rather than cache locality.
+    int maxProbe = 1;
+    for (const Record& r : data) {
+        int p = ht.probeLength(r.key);
+        if (p > maxProbe) maxProbe = p;
     }
+
+    vector<long long> bestPool, worstPool;
+    for (const Record& r : data) {
+        int p = ht.probeLength(r.key);
+        if (p == 1)        bestPool.push_back(r.key);
+        if (p == maxProbe) worstPool.push_back(r.key);
+    }
+    // Safety: a perfectly collision-free table has no "worst" beyond best.
+    if (worstPool.empty()) worstPool = bestPool;
+    if (bestPool.empty())  bestPool  = worstPool;
 
     vector<long long> bestKeys(n), avgKeys(n), worstKeys(n);
     for (int i = 0; i < n; i++) {
@@ -201,7 +203,7 @@ int main(int argc, char* argv[]) {
 
     volatile bool dummy = false;
 
-    // ── BEST CASE: n searches over chain-head keys ──
+    // ── BEST CASE: n searches over home-slot keys ──
     auto t0 = high_resolution_clock::now();
     for (int i = 0; i < n; i++) dummy = dummy ^ ht.search(bestKeys[i]);
     auto t1 = high_resolution_clock::now();
@@ -213,7 +215,7 @@ int main(int argc, char* argv[]) {
     auto t3 = high_resolution_clock::now();
     double avgTime = duration<double>(t3 - t2).count();
 
-    // ── WORST CASE: n searches over chain-tail keys ──
+    // ── WORST CASE: n searches over longest-probe keys ──
     auto t4 = high_resolution_clock::now();
     for (int i = 0; i < n; i++) dummy = dummy ^ ht.search(worstKeys[i]);
     auto t5 = high_resolution_clock::now();
@@ -225,7 +227,7 @@ int main(int argc, char* argv[]) {
     size_t dt = base.find_last_of('.');   if (dt != string::npos) base = base.substr(0, dt);
 
     MAKE_DIR("outputs");
-    string outFile = "outputs/hash_table_search_" + base + ".txt";
+    string outFile = "outputs/hash_table_search_linear_" + base + ".txt";
 
     string bestLine  = "Best case time: "    + fmtTime(bestTime)  + " seconds";
     string avgLine   = "Average case time: " + fmtTime(avgTime)   + " seconds";

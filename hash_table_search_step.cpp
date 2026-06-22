@@ -1,5 +1,5 @@
 // *********************************************************
-// Program: hash_table_search_step.cpp
+// Program: hash_table_search.cpp
 // Course: CCP6214 Algorithm Design and Analysis
 // Lecture Class: TC2L
 // Tutorial Class: TT8L
@@ -16,12 +16,10 @@
 // Member_4: Dataset generator
 // *********************************************************
 //
-// Collision resolution: SEPARATE CHAINING using a singly linked list
-// per bucket. This step program traces the search path: the hash index,
-// then each comparison made while walking the bucket's linked list until
-// the key is found or the chain ends (-1).
-// (The array-based vs linked-list-based AVL BST comparison is discussed
-//  THEORETICALLY in the report's conclusion only.)
+// Collision resolution: LINEAR PROBING (open addressing). This step program
+// traces the search path: the home index hash(target), then each slot probed
+// while walking forward (wrapping around) until the key is found or an empty
+// slot ends the probe sequence (-1).
 // *********************************************************
 
 #include <iostream>
@@ -39,28 +37,14 @@ struct Record {
     string str;
 };
 
-// ─── Singly Linked List Node ─────────────────────────────
-struct Node {
+// ─── Hash Table slot (open addressing) ───────────────────
+struct Slot {
     Record data;
-    Node* next;
-    Node(Record r) : data(r), next(nullptr) {}
+    bool occupied;
+    Slot() : occupied(false) {}
 };
 
-struct HashSlot {
-    Node* head;
-    int chainLen;
-    HashSlot() : head(nullptr), chainLen(0) {}
-    ~HashSlot() {
-        Node* curr = head;
-        while (curr) {
-            Node* temp = curr->next;
-            delete curr;
-            curr = temp;
-        }
-    }
-};
-
-// ─── Prime helpers (table size = next prime >= n) ────────
+// ─── Prime helpers (table size = next prime >= 2n) ───────
 bool isPrime(int num) {
     if (num <= 1) return false;
     if (num <= 3) return true;
@@ -80,28 +64,15 @@ int nextPrime(int num) {
     }
 }
 
-// Walk the bucket's linked list, logging every comparison.
-bool listStep(Node* curr, long long tgt, vector<string>& log) {
-    while (curr) {
-        if (tgt == curr->data.key) {
-            log.push_back(to_string(tgt) + " = " + to_string(curr->data.key) + "/" + curr->data.str);
-            return true;
-        }
-        log.push_back(to_string(curr->data.key) + "/" + curr->data.str + " != " + to_string(tgt));
-        curr = curr->next;
-    }
-    return false;
-}
-
-// ─── Hash Table (linked-list chaining) ───────────────────
+// ─── Hash Table (linear probing) ─────────────────────────
 class HashTable {
 public:
-    HashSlot* table;
+    Slot* table;
     int tableSize;
 
     HashTable(int size) {
         tableSize = size;
-        table = new HashSlot[tableSize];
+        table = new Slot[tableSize];
     }
     ~HashTable() { delete[] table; }
 
@@ -109,28 +80,36 @@ public:
 
     void insert(Record r) {
         int i = hf(r.key);
-        Node* curr = table[i].head;
-        while (curr) {                      // skip duplicate keys
-            if (curr->data.key == r.key) return;
-            curr = curr->next;
+        while (table[i].occupied) {
+            if (table[i].data.key == r.key) return;   // skip duplicate keys
+            i++;
+            if (i == tableSize) i = 0;                 // wrap around
         }
-        Node* newNode = new Node(r);
-        newNode->next = table[i].head;      // prepend
-        table[i].head = newNode;
-        table[i].chainLen++;
+        table[i].data = r;
+        table[i].occupied = true;
     }
 
-    bool search(long long tgt, vector<string>& log, bool& notFoundLogged) const {
+    // Walk the probe sequence, logging every slot examined.
+    bool search(long long tgt, vector<string>& log) const {
         int idx = hf(tgt);
         log.push_back("hash(" + to_string(tgt) + ") = " + to_string(idx));
 
-        if (!table[idx].head) {
-            log.push_back("-1 != " + to_string(tgt));   // empty bucket
-            notFoundLogged = true;
-            return false;
+        int i = idx;
+        while (table[i].occupied) {
+            if (table[i].data.key == tgt) {
+                log.push_back(to_string(tgt) + " = " +
+                              to_string(table[i].data.key) + "/" + table[i].data.str);
+                return true;
+            }
+            log.push_back("slot " + to_string(i) + ": " +
+                          to_string(table[i].data.key) + "/" + table[i].data.str +
+                          " != " + to_string(tgt));
+            i++;
+            if (i == tableSize) i = 0;
         }
-        notFoundLogged = false;
-        return listStep(table[idx].head, tgt, log);
+        // Empty slot ends the probe sequence -> not found.
+        log.push_back("-1 != " + to_string(tgt));
+        return false;
     }
 };
 
@@ -171,14 +150,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Dynamic hash table sizing matching the main search program.
-    int dynamicTableSize = nextPrime((int)data.size());
+    // Open addressing needs load factor < 1; size = next prime >= 2n.
+    int dynamicTableSize = nextPrime(2 * (int)data.size());
     HashTable ht(dynamicTableSize);
     for (const Record& r : data) ht.insert(r);
 
     vector<string> steps;
-    bool notFoundLogged = false;
-    bool found = ht.search(target, steps, notFoundLogged);
+    ht.search(target, steps);
 
     // Build output filename from csv base name.
     string base = csvFile;
@@ -188,22 +166,15 @@ int main(int argc, char* argv[]) {
     if (dt != string::npos) base = base.substr(0, dt);
 
     MAKE_DIR("outputs");
-    string outFile = "outputs/" + base + "_hash_table_search_step_" + to_string(target) + ".txt";
+    string outFile = "outputs/" + base + "_hash_table_search_linear_step_" + to_string(target) + ".txt";
 
     ofstream fout(outFile);
     for (const string& s : steps) {
         cout << s << "\n";
         fout << s << "\n";
     }
-
-    // Walking off the end of the chain also means "not found".
-    if (!found && !notFoundLogged) {
-        string nf = "-1 != " + to_string(target);
-        cout << nf << "\n";
-        fout << nf << "\n";
-    }
-
     fout.close();
+
     cout << "\nOutput written to: " << outFile << endl;
     return 0;
 }
