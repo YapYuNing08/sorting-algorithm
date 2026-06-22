@@ -32,26 +32,81 @@ struct Record {
     string str;
 };
 
-// ─── Singly Linked List Node ─────────────────────────────
-struct Node {
+struct AVLNode {
     Record data;
-    Node* next;
-    Node(Record r) : data(r), next(nullptr) {}
+    AVLNode* left;
+    AVLNode* right;
+    int height;
+    AVLNode(Record r) : data(r), left(nullptr), right(nullptr), height(1) {}
 };
 
-struct HashSlot {
-    Node* head;
-    int chainLen;
-    HashSlot() : head(nullptr), chainLen(0) {}
-    ~HashSlot() {
-        Node* curr = head;
-        while (curr) {
-            Node* temp = curr->next;
-            delete curr;
-            curr = temp;
-        }
+int avlH(AVLNode* n) {
+    return n ? n->height : 0;
+}
+
+void avlUpd(AVLNode* n) {
+    if (n)
+        n->height = 1 + max(avlH(n->left), avlH(n->right));
+}
+
+AVLNode* rotR(AVLNode* y) {
+    AVLNode* x = y->left;
+    AVLNode* T = x->right;
+    x->right = y;
+    y->left = T;
+    avlUpd(y);
+    avlUpd(x);
+    return x;
+}
+
+AVLNode* rotL(AVLNode* x) {
+    AVLNode* y = x->right;
+    AVLNode* T = y->left;
+    y->left = x;
+    x->right = T;
+    avlUpd(x);
+    avlUpd(y);
+    return y;
+}
+
+AVLNode* avlBal(AVLNode* n) {
+    avlUpd(n);
+    int bf = avlH(n->left) - avlH(n->right);
+    if (bf > 1) {
+        if (avlH(n->left->left) < avlH(n->left->right))
+            n->left = rotL(n->left);
+        return rotR(n);
     }
-};
+    if (bf < -1) {
+        if (avlH(n->right->right) < avlH(n->right->left))
+            n->right = rotR(n->right);
+        return rotL(n);
+    }
+    return n;
+}
+
+// Inserts node, and sets 'inserted' to true if it's a new insertion (no duplicates).
+AVLNode* avlIns(AVLNode* nd, Record r, bool& inserted) {
+    if (!nd) {
+        inserted = true;
+        return new AVLNode(r);
+    }
+    if (r.key < nd->data.key)
+        nd->left = avlIns(nd->left, r, inserted);
+    else if (r.key > nd->data.key)
+        nd->right = avlIns(nd->right, r, inserted);
+    else
+        inserted = false;
+    return avlBal(nd);
+}
+
+// Recursively deletes AVL tree nodes to prevent memory leaks.
+void freeAVL(AVLNode* nd) {
+    if (!nd) return;
+    freeAVL(nd->left);
+    freeAVL(nd->right);
+    delete nd;
+}
 
 // Helper functions for prime generation
 bool isPrime(int num) {
@@ -74,18 +129,32 @@ int nextPrime(int num) {
     }
 }
 
-// Search with step logging sequentially through the list.
-bool listStep(Node* curr, long long tgt, vector<string>& log) {
-    while (curr) {
-        if (tgt == curr->data.key) {
-            log.push_back(to_string(tgt) + " = " + to_string(curr->data.key) + "/" + curr->data.str);
-            return true;
-        }
-        log.push_back(to_string(curr->data.key) + "/" + curr->data.str + " != " + to_string(tgt));
-        curr = curr->next;
+// Search with step logging. Returns true if found.
+bool avlStep(AVLNode* nd, long long tgt, vector<string>& log) {
+    if (!nd)
+        return false;
+
+    if (tgt == nd->data.key) {
+        log.push_back(to_string(tgt) + " = " + to_string(nd->data.key) + "/" + nd->data.str);
+        return true;
     }
-    return false;
+
+    log.push_back(to_string(nd->data.key) + "/" + nd->data.str + " != " + to_string(tgt));
+
+    if (tgt < nd->data.key)
+        return avlStep(nd->left, tgt, log);
+    else
+        return avlStep(nd->right, tgt, log);
 }
+
+struct HashSlot {
+    AVLNode* root;
+    int chainLen;
+    HashSlot() : root(nullptr), chainLen(0) {}
+    ~HashSlot() {
+        freeAVL(root);
+    }
+};
 
 class HashTable {
 public:
@@ -107,29 +176,25 @@ public:
 
     void insert(Record r) {
         int i = hf(r.key);
-        Node* curr = table[i].head;
-        while (curr) {
-            if (curr->data.key == r.key) return; // duplicate checking
-            curr = curr->next;
+        bool inserted = false;
+        table[i].root = avlIns(table[i].root, r, inserted);
+        if (inserted) {
+            table[i].chainLen++;
         }
-        Node* newNode = new Node(r);
-        newNode->next = table[i].head;
-        table[i].head = newNode;
-        table[i].chainLen++;
     }
 
     bool search(long long tgt, vector<string>& log, bool& notFoundLogged) const {
         int idx = hf(tgt);
         log.push_back("hash(" + to_string(tgt) + ") = " + to_string(idx));
 
-        if (!table[idx].head) {
+        if (!table[idx].root) {
             log.push_back("-1 != " + to_string(tgt));
             notFoundLogged = true;
             return false;
         }
 
         notFoundLogged = false;
-        return listStep(table[idx].head, tgt, log);
+        return avlStep(table[idx].root, tgt, log);
     }
 };
 
