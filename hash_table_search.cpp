@@ -7,7 +7,7 @@
 // Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
 // Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
 // Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
-// Member_4: 242UC244KC | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
+// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
 // *********************************************************
 // Task Distribution
 // Member_1: Radix sort algorithm
@@ -15,7 +15,6 @@
 // Member_3: Hash table search algorithm
 // Member_4: Dataset generator
 // *********************************************************
-
 
 #include <iostream>
 #include <fstream>
@@ -35,77 +34,25 @@ using namespace chrono;
 
 struct Record { long long key; string str; };
 
-// ─── AVL Tree ────────────────────────────────────────────
-struct AVLNode {
-    Record data; AVLNode* left; AVLNode* right; int height;
-    AVLNode(Record r) : data(r), left(nullptr), right(nullptr), height(1) {}
+// ─── Singly Linked List Node ─────────────────────────────
+struct Node {
+    Record data;
+    Node* next;
+    Node(Record r) : data(r), next(nullptr) {}
 };
-
-int avlH(AVLNode* n) { return n ? n->height : 0; }
-void avlUpd(AVLNode* n) { if(n) n->height=1+max(avlH(n->left),avlH(n->right)); }
-
-AVLNode* rotR(AVLNode* y) {
-    AVLNode* x=y->left; AVLNode* T=x->right;
-    x->right=y; y->left=T; avlUpd(y); avlUpd(x); return x;
-}
-AVLNode* rotL(AVLNode* x) {
-    AVLNode* y=x->right; AVLNode* T=y->left;
-    y->left=x; x->right=T; avlUpd(x); avlUpd(y); return y;
-}
-AVLNode* avlBal(AVLNode* n) {
-    avlUpd(n);
-    int bf=avlH(n->left)-avlH(n->right);
-    if(bf>1){ if(avlH(n->left->left)<avlH(n->left->right)) n->left=rotL(n->left); return rotR(n); }
-    if(bf<-1){ if(avlH(n->right->right)<avlH(n->right->left)) n->right=rotR(n->right); return rotL(n); }
-    return n;
-}
-
-// Inserts node, and sets 'inserted' to true if it's a new insertion (no duplicates).
-AVLNode* avlIns(AVLNode* nd, Record r, bool& inserted) {
-    if(!nd) {
-        inserted = true;
-        return new AVLNode(r);
-    }
-    if(r.key<nd->data.key) nd->left=avlIns(nd->left,r,inserted);
-    else if(r.key>nd->data.key) nd->right=avlIns(nd->right,r,inserted);
-    else inserted = false;
-    return avlBal(nd);
-}
-
-bool avlSearch(AVLNode* nd, long long tgt) {
-    while(nd){
-        if(tgt==nd->data.key) return true;
-        else if(tgt<nd->data.key) nd=nd->left;
-        else nd=nd->right;
-    }
-    return false;
-}
-
-bool avlSearchCount(AVLNode* nd, long long tgt, long long& comparisons) {
-    while(nd){
-        comparisons++;
-        if(tgt==nd->data.key) return true;
-        else if(tgt<nd->data.key) nd=nd->left;
-        else nd=nd->right;
-    }
-    return false;
-}
-
-// Recursively deletes AVL tree nodes to prevent memory leaks.
-void freeAVL(AVLNode* nd) {
-    if (!nd) return;
-    freeAVL(nd->left);
-    freeAVL(nd->right);
-    delete nd;
-}
 
 // ─── Hash Table ──────────────────────────────────────────
 struct HashSlot {
-    AVLNode* root;
+    Node* head;
     int chainLen;
-    HashSlot() : root(nullptr), chainLen(0) {}
+    HashSlot() : head(nullptr), chainLen(0) {}
     ~HashSlot() {
-        freeAVL(root);
+        Node* curr = head;
+        while (curr) {
+            Node* temp = curr->next;
+            delete curr;
+            curr = temp;
+        }
     }
 };
 
@@ -125,22 +72,38 @@ public:
 
     void insert(Record r){
         int i=hf(r.key);
-        bool inserted = false;
-        table[i].root=avlIns(table[i].root,r,inserted);
-        if (inserted) {
-            table[i].chainLen++;
+        // Retain duplicate key checking (consistent with original code)
+        Node* curr = table[i].head;
+        while (curr) {
+            if (curr->data.key == r.key) return;
+            curr = curr->next;
         }
+        Node* newNode = new Node(r);
+        newNode->next = table[i].head;
+        table[i].head = newNode;
+        table[i].chainLen++;
     }
+    
     bool search(long long tgt) const {
         int i=hf(tgt);
-        if(!table[i].root) return false;
-        return avlSearch(table[i].root,tgt);
+        Node* curr = table[i].head;
+        while(curr){
+            if(tgt==curr->data.key) return true;
+            curr=curr->next;
+        }
+        return false;
     }
+    
     long long searchComparisons(long long tgt) const {
         int i=hf(tgt);
-        if(!table[i].root) return 1;
+        if(!table[i].head) return 1;
         long long comps = 0;
-        avlSearchCount(table[i].root, tgt, comps);
+        Node* curr = table[i].head;
+        while(curr){
+            comps++;
+            if(curr->data.key == tgt) return comps;
+            curr=curr->next;
+        }
         return comps;
     }
 };
@@ -167,17 +130,13 @@ int nextPrime(int num) {
     }
 }
 
-// Find the leaf node at the maximum height of the AVL tree.
-long long findDeepestKey(AVLNode* nd) {
-    if (!nd) return 0;
-    while (nd->left || nd->right) {
-        if (avlH(nd->left) > avlH(nd->right)) {
-            nd = nd->left;
-        } else {
-            nd = nd->right;
-        }
+// Find the last node in the linked list (tail node represents worst-case depth).
+long long findDeepestKey(Node* head) {
+    if (!head) return 0;
+    while (head->next) {
+        head = head->next;
     }
-    return nd->data.key;
+    return head->data.key;
 }
 
 vector<Record> loadCSV(const string& fn){
@@ -201,13 +160,13 @@ string fmtTime(double t){
 }
 
 // Stress test: deliberately small table size to force real collisions,
-// proving worst-case AVL chain traversal is genuinely slower than best case.
+// proving worst-case list traversal is genuinely slower than best case.
 // This is a SEPARATE diagnostic from the main dynamic results
 // and is NOT representative of the actual hash table used for submission.
 void runStressTest(const vector<Record>& data) {
     const int STRESS_TABLE_SIZE = 97; // small prime -> forces deep chains
     cout << "\n[STRESS TEST] Using a deliberately small table size ("
-         << STRESS_TABLE_SIZE << ") to force real AVL chain depth.\n"
+         << STRESS_TABLE_SIZE << ") to force real list chain depth.\n"
          << "This block is NOT the actual hash table used for submission.\n";
 
     HashTable sht(STRESS_TABLE_SIZE);
@@ -221,16 +180,14 @@ void runStressTest(const vector<Record>& data) {
         }
     }
     long long worstKey = 0;
-    { AVLNode* cur = sht.table[maxIdx].root; while (cur) { worstKey = cur->data.key; cur = cur->right; } }
+    { Node* cur = sht.table[maxIdx].head; while (cur) { worstKey = cur->data.key; cur = cur->next; } }
 
     long long bestKey = data[0].key;
     for (const Record& r : data) {
         if (sht.table[sht.hf(r.key)].chainLen == 1) { bestKey = r.key; break; }
     }
 
-    int worstHeight = sht.table[maxIdx].root ? sht.table[maxIdx].root->height : 0;
-    cout << "[STRESS TEST] longest chain = " << maxChain
-         << ", AVL height = " << worstHeight << "\n";
+    cout << "[STRESS TEST] longest chain = " << maxChain << "\n";
 
     int n = (int)data.size();
     volatile bool dummy = false;
@@ -281,14 +238,11 @@ int main(int argc, char* argv[]){
     for(int i=0;i<dynamicTableSize;i++){
         if(ht.table[i].chainLen>maxChain){ maxChain=ht.table[i].chainLen; maxIdx=i; }
     }
-    long long worstKey=0;
-    { AVLNode* cur=ht.table[maxIdx].root; while(cur){ worstKey=cur->data.key; cur=cur->right; } }
+    long long worstKey = findDeepestKey(ht.table[maxIdx].head);
 
     // Diagnostic: report how deep the worst real chain actually is
-    int worstAVLHeight = ht.table[maxIdx].root ? ht.table[maxIdx].root->height : 0;
     cout << "[diagnostic] Table size = " << dynamicTableSize
-         << ", longest bucket chain length = " << maxChain
-         << ", AVL height = " << worstAVLHeight << endl;
+         << ", longest bucket chain length = " << maxChain << endl;
 
     // ── Identify case keys & generate cache-representative search arrays ──
     
@@ -300,7 +254,6 @@ int main(int argc, char* argv[]){
         }
     }
     if(bestCasePool.empty()) {
-        // Fallback
         bestCasePool.push_back(data[0].key);
     }
     vector<long long> bestCaseSearchKeys(n);
@@ -309,16 +262,20 @@ int main(int argc, char* argv[]){
     }
     fisherYatesShuffle(bestCaseSearchKeys);
 
-    // Worst case keys: Deepest leaf node from each bucket that meets/exceeds a threshold depth.
-    // Setting threshold = max(2, maxChain) ensures we pull leaf nodes from the deepest chains.
-    int threshold = max(2, maxChain);
+    // Worst case keys: Deepest nodes (tails) from buckets meeting/exceeding a threshold depth.
+    // We dynamically adjust the threshold to get at least 300 distinct keys to trigger cache misses.
+    int threshold = maxChain;
     vector<long long> worstCasePool;
-    for (int i = 0; i < dynamicTableSize; i++) {
-        if (ht.table[i].chainLen >= threshold && ht.table[i].root) {
-            worstCasePool.push_back(findDeepestKey(ht.table[i].root));
+    while (worstCasePool.size() < 300 && threshold >= 1) {
+        worstCasePool.clear();
+        for (int i = 0; i < dynamicTableSize; i++) {
+            if (ht.table[i].chainLen >= threshold && ht.table[i].head) {
+                worstCasePool.push_back(findDeepestKey(ht.table[i].head));
+            }
         }
+        threshold--;
     }
-    if(worstCasePool.empty()) {
+    if (worstCasePool.empty()) {
         worstCasePool.push_back(worstKey);
     }
     vector<long long> worstCaseSearchKeys(n);
@@ -334,7 +291,7 @@ int main(int argc, char* argv[]){
 
     volatile bool dummy = false;
 
-    // ── BEST CASE: n searches on single-element bucket keys (shuffled to emulate cache misses) ──
+    // ── BEST CASE: n searches on single-element bucket keys ──
     auto t0=high_resolution_clock::now();
     for(int i=0;i<n;i++) dummy = dummy ^ ht.search(bestCaseSearchKeys[i]);
     auto t1=high_resolution_clock::now();
@@ -346,7 +303,7 @@ int main(int argc, char* argv[]){
     auto t3=high_resolution_clock::now();
     double avgTime=duration<double>(t3-t2).count();
 
-    // ── WORST CASE: n searches on deepest-chain keys (shuffled to emulate cache misses) ──
+    // ── WORST CASE: n searches on deepest-chain keys ──
     auto t4=high_resolution_clock::now();
     for(int i=0;i<n;i++) dummy = dummy ^ ht.search(worstCaseSearchKeys[i]);
     auto t5=high_resolution_clock::now();
@@ -395,9 +352,6 @@ int main(int argc, char* argv[]){
 
     cout<<"\nOutput written to: "<<outFile<<endl;
 
-    // Optional: run stress test to prove worst-case AVL depth scaling
-    // Pass a second argument "stress" to enable, e.g.:
-    //   ./hash_table_search datasets/dataset_1000.csv stress
     if (argc >= 3 && string(argv[2]) == "stress") {
         runStressTest(data);
     }
