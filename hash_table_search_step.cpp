@@ -7,7 +7,7 @@
 // Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
 // Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
 // Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
-// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
+// Member_4: 242UC244KC | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
 // *********************************************************
 // Task Distribution
 // Member_1: Radix sort algorithm
@@ -85,14 +85,48 @@ AVLNode* avlBal(AVLNode* n) {
     return n;
 }
 
-AVLNode* avlIns(AVLNode* nd, Record r) {
-    if (!nd)
+// Inserts node, and sets 'inserted' to true if it's a new insertion (no duplicates).
+AVLNode* avlIns(AVLNode* nd, Record r, bool& inserted) {
+    if (!nd) {
+        inserted = true;
         return new AVLNode(r);
+    }
     if (r.key < nd->data.key)
-        nd->left = avlIns(nd->left, r);
+        nd->left = avlIns(nd->left, r, inserted);
     else if (r.key > nd->data.key)
-        nd->right = avlIns(nd->right, r);
+        nd->right = avlIns(nd->right, r, inserted);
+    else
+        inserted = false;
     return avlBal(nd);
+}
+
+// Recursively deletes AVL tree nodes to prevent memory leaks.
+void freeAVL(AVLNode* nd) {
+    if (!nd) return;
+    freeAVL(nd->left);
+    freeAVL(nd->right);
+    delete nd;
+}
+
+// Helper functions for prime generation
+bool isPrime(int num) {
+    if (num <= 1) return false;
+    if (num <= 3) return true;
+    if (num % 2 == 0 || num % 3 == 0) return false;
+    for (int i = 5; i * i <= num; i += 6) {
+        if (num % i == 0 || num % (i + 2) == 0) return false;
+    }
+    return true;
+}
+
+int nextPrime(int num) {
+    if (num <= 2) return 2;
+    int p = num;
+    if (p % 2 == 0) p++;
+    while (true) {
+        if (isPrime(p)) return p;
+        p += 2;
+    }
 }
 
 // Search with step logging. Returns true if found.
@@ -113,19 +147,23 @@ bool avlStep(AVLNode* nd, long long tgt, vector<string>& log) {
         return avlStep(nd->right, tgt, log);
 }
 
-const int TABLE_SIZE = 1000003; // prime
-
 struct HashSlot {
     AVLNode* root;
-    HashSlot() : root(nullptr) {}
+    int chainLen;
+    HashSlot() : root(nullptr), chainLen(0) {}
+    ~HashSlot() {
+        freeAVL(root);
+    }
 };
 
 class HashTable {
 public:
     HashSlot* table;
+    int tableSize;
 
-    HashTable() {
-        table = new HashSlot[TABLE_SIZE];
+    HashTable(int size) {
+        tableSize = size;
+        table = new HashSlot[tableSize];
     }
 
     ~HashTable() {
@@ -133,12 +171,16 @@ public:
     }
 
     int hf(long long k) const {
-        return (int)(k % TABLE_SIZE);
+        return (int)(k % tableSize);
     }
 
     void insert(Record r) {
         int i = hf(r.key);
-        table[i].root = avlIns(table[i].root, r);
+        bool inserted = false;
+        table[i].root = avlIns(table[i].root, r, inserted);
+        if (inserted) {
+            table[i].chainLen++;
+        }
     }
 
     bool search(long long tgt, vector<string>& log, bool& notFoundLogged) const {
@@ -174,7 +216,7 @@ vector<Record> loadCSV(const string& fn) {
             continue;
 
         Record r;
-        r.key = stoll(line.substr(0, c));
+        r.key = atoll(line.substr(0, c).c_str());
         r.str = line.substr(c + 1);
         if (!r.str.empty() && r.str.back() == '\r')
             r.str.pop_back();
@@ -191,7 +233,7 @@ int main(int argc, char* argv[]) {
     if (argc >= 2)
         csvFile = argv[1];
     if (argc >= 3)
-        target = stoll(argv[2]);
+        target = atoll(argv[2]); // Consistent atoll
 
     vector<Record> data = loadCSV(csvFile);
     if (data.empty()) {
@@ -199,7 +241,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    HashTable ht;
+    // Dynamic Hash Table sizing matching the main search file
+    int dynamicTableSize = nextPrime((int)data.size());
+    HashTable ht(dynamicTableSize);
     for (const Record& r : data)
         ht.insert(r);
 
