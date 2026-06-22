@@ -16,11 +16,12 @@
 // Member_4: Dataset generator
 // *********************************************************
 //
-// Collision resolution: SEPARATE CHAINING using a balanced AVL
-// binary search tree per bucket. This step program traces the search
-// path: the hash index, then each comparison made while descending the
-// bucket's AVL tree (go left / go right) until the key is found or a
-// dead end (-1) is reached.
+// Collision resolution: SEPARATE CHAINING using a singly linked list
+// per bucket. This step program traces the search path: the hash index,
+// then each comparison made while walking the bucket's linked list until
+// the key is found or the chain ends (-1).
+// (The array-based vs linked-list-based AVL BST comparison is discussed
+//  THEORETICALLY in the report's conclusion only.)
 // *********************************************************
 
 #include <iostream>
@@ -38,91 +39,26 @@ struct Record {
     string str;
 };
 
-// ─── AVL Tree Node ───────────────────────────────────────
-struct AVLNode {
+// ─── Singly Linked List Node ─────────────────────────────
+struct Node {
     Record data;
-    AVLNode* left;
-    AVLNode* right;
-    int height;
-    AVLNode(Record r) : data(r), left(nullptr), right(nullptr), height(1) {}
+    Node* next;
+    Node(Record r) : data(r), next(nullptr) {}
 };
 
-// ─── AVL helper routines ─────────────────────────────────
-static int height(AVLNode* n) { return n ? n->height : 0; }
-
-static void updateHeight(AVLNode* n) {
-    int hl = height(n->left), hr = height(n->right);
-    n->height = 1 + (hl > hr ? hl : hr);
-}
-
-static int balanceFactor(AVLNode* n) { return n ? height(n->left) - height(n->right) : 0; }
-
-static AVLNode* rotateRight(AVLNode* y) {
-    AVLNode* x = y->left;
-    AVLNode* t2 = x->right;
-    x->right = y;
-    y->left = t2;
-    updateHeight(y);
-    updateHeight(x);
-    return x;
-}
-
-static AVLNode* rotateLeft(AVLNode* x) {
-    AVLNode* y = x->right;
-    AVLNode* t2 = y->left;
-    y->left = x;
-    x->right = t2;
-    updateHeight(x);
-    updateHeight(y);
-    return y;
-}
-
-static AVLNode* avlInsert(AVLNode* node, Record r) {
-    if (!node) return new AVLNode(r);
-    if (r.key < node->data.key)      node->left  = avlInsert(node->left, r);
-    else if (r.key > node->data.key) node->right = avlInsert(node->right, r);
-    else return node;                          // duplicate key -> ignore
-
-    updateHeight(node);
-    int bf = balanceFactor(node);
-
-    if (bf > 1 && r.key < node->left->data.key)  return rotateRight(node);                 // LL
-    if (bf < -1 && r.key > node->right->data.key) return rotateLeft(node);                 // RR
-    if (bf > 1 && r.key > node->left->data.key) {                                          // LR
-        node->left = rotateLeft(node->left);
-        return rotateRight(node);
-    }
-    if (bf < -1 && r.key < node->right->data.key) {                                        // RL
-        node->right = rotateRight(node->right);
-        return rotateLeft(node);
-    }
-    return node;
-}
-
-static void avlDestroy(AVLNode* n) {
-    if (!n) return;
-    avlDestroy(n->left);
-    avlDestroy(n->right);
-    delete n;
-}
-
-// Trace the descent through a bucket's AVL tree, logging every comparison.
-static bool avlSearchStep(AVLNode* node, long long tgt, vector<string>& log) {
-    while (node) {
-        if (tgt == node->data.key) {
-            log.push_back(to_string(tgt) + " = " + to_string(node->data.key) + "/" + node->data.str);
-            return true;
-        }
-        if (tgt < node->data.key) {
-            log.push_back(to_string(tgt) + " < " + to_string(node->data.key) + "/" + node->data.str + "  -> go left");
-            node = node->left;
-        } else {
-            log.push_back(to_string(tgt) + " > " + to_string(node->data.key) + "/" + node->data.str + "  -> go right");
-            node = node->right;
+struct HashSlot {
+    Node* head;
+    int chainLen;
+    HashSlot() : head(nullptr), chainLen(0) {}
+    ~HashSlot() {
+        Node* curr = head;
+        while (curr) {
+            Node* temp = curr->next;
+            delete curr;
+            curr = temp;
         }
     }
-    return false;
-}
+};
 
 // ─── Prime helpers (table size = next prime >= n) ────────
 bool isPrime(int num) {
@@ -144,13 +80,20 @@ int nextPrime(int num) {
     }
 }
 
-// ─── Hash Table (AVL-tree chaining) ──────────────────────
-struct HashSlot {
-    AVLNode* root;
-    HashSlot() : root(nullptr) {}
-    ~HashSlot() { avlDestroy(root); }
-};
+// Walk the bucket's linked list, logging every comparison.
+bool listStep(Node* curr, long long tgt, vector<string>& log) {
+    while (curr) {
+        if (tgt == curr->data.key) {
+            log.push_back(to_string(tgt) + " = " + to_string(curr->data.key) + "/" + curr->data.str);
+            return true;
+        }
+        log.push_back(to_string(curr->data.key) + "/" + curr->data.str + " != " + to_string(tgt));
+        curr = curr->next;
+    }
+    return false;
+}
 
+// ─── Hash Table (linked-list chaining) ───────────────────
 class HashTable {
 public:
     HashSlot* table;
@@ -166,20 +109,28 @@ public:
 
     void insert(Record r) {
         int i = hf(r.key);
-        table[i].root = avlInsert(table[i].root, r);
+        Node* curr = table[i].head;
+        while (curr) {                      // skip duplicate keys
+            if (curr->data.key == r.key) return;
+            curr = curr->next;
+        }
+        Node* newNode = new Node(r);
+        newNode->next = table[i].head;      // prepend
+        table[i].head = newNode;
+        table[i].chainLen++;
     }
 
     bool search(long long tgt, vector<string>& log, bool& notFoundLogged) const {
         int idx = hf(tgt);
         log.push_back("hash(" + to_string(tgt) + ") = " + to_string(idx));
 
-        if (!table[idx].root) {
+        if (!table[idx].head) {
             log.push_back("-1 != " + to_string(tgt));   // empty bucket
             notFoundLogged = true;
             return false;
         }
         notFoundLogged = false;
-        return avlSearchStep(table[idx].root, tgt, log);
+        return listStep(table[idx].head, tgt, log);
     }
 };
 
@@ -245,7 +196,7 @@ int main(int argc, char* argv[]) {
         fout << s << "\n";
     }
 
-    // Reaching a null child during descent also means "not found".
+    // Walking off the end of the chain also means "not found".
     if (!found && !notFoundLogged) {
         string nf = "-1 != " + to_string(target);
         cout << nf << "\n";

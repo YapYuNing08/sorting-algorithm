@@ -16,11 +16,12 @@
 // Member_4: Dataset generator
 // *********************************************************
 //
-// Collision resolution: SEPARATE CHAINING using a balanced AVL
-// binary search tree per bucket. Each table slot holds the root of an
-// AVL tree keyed on the integer field. This bounds the worst-case search
-// within a bucket to O(log m) (m = bucket size) instead of O(m) for a
-// singly linked list.
+// Collision resolution: SEPARATE CHAINING using a singly linked list
+// per bucket. Each table slot holds the head of a linked list of records
+// whose integer keys hashed to that slot.
+// (The array-based vs linked-list-based AVL BST comparison is discussed
+//  THEORETICALLY in the report's conclusion only; the implemented table
+//  uses linked-list chaining.)
 // *********************************************************
 
 #include <iostream>
@@ -40,98 +41,26 @@ using namespace chrono;
 
 struct Record { long long key; string str; };
 
-// ─── AVL Tree Node ───────────────────────────────────────
-struct AVLNode {
+// ─── Singly Linked List Node ─────────────────────────────
+struct Node {
     Record data;
-    AVLNode* left;
-    AVLNode* right;
-    int height;
-    AVLNode(Record r) : data(r), left(nullptr), right(nullptr), height(1) {}
+    Node* next;
+    Node(Record r) : data(r), next(nullptr) {}
 };
 
-// ─── AVL helper routines ─────────────────────────────────
-static int height(AVLNode* n) { return n ? n->height : 0; }
-
-static void updateHeight(AVLNode* n) {
-    int hl = height(n->left), hr = height(n->right);
-    n->height = 1 + (hl > hr ? hl : hr);
-}
-
-static int balanceFactor(AVLNode* n) { return n ? height(n->left) - height(n->right) : 0; }
-
-static AVLNode* rotateRight(AVLNode* y) {
-    AVLNode* x = y->left;
-    AVLNode* t2 = x->right;
-    x->right = y;
-    y->left = t2;
-    updateHeight(y);
-    updateHeight(x);
-    return x;
-}
-
-static AVLNode* rotateLeft(AVLNode* x) {
-    AVLNode* y = x->right;
-    AVLNode* t2 = y->left;
-    y->left = x;
-    x->right = t2;
-    updateHeight(x);
-    updateHeight(y);
-    return y;
-}
-
-// Insert a record into the AVL tree, rebalancing on the way up.
-static AVLNode* avlInsert(AVLNode* node, Record r) {
-    if (!node) return new AVLNode(r);
-    if (r.key < node->data.key)      node->left  = avlInsert(node->left, r);
-    else if (r.key > node->data.key) node->right = avlInsert(node->right, r);
-    else return node;                          // duplicate key -> ignore
-
-    updateHeight(node);
-    int bf = balanceFactor(node);
-
-    if (bf > 1 && r.key < node->left->data.key)  return rotateRight(node);                 // LL
-    if (bf < -1 && r.key > node->right->data.key) return rotateLeft(node);                 // RR
-    if (bf > 1 && r.key > node->left->data.key) {                                          // LR
-        node->left = rotateLeft(node->left);
-        return rotateRight(node);
-    }
-    if (bf < -1 && r.key < node->right->data.key) {                                        // RL
-        node->right = rotateRight(node->right);
-        return rotateLeft(node);
-    }
-    return node;
-}
-
-// Iterative AVL search (the operation we are benchmarking).
-static bool avlSearch(AVLNode* node, long long tgt) {
-    while (node) {
-        if (tgt == node->data.key) return true;
-        node = (tgt < node->data.key) ? node->left : node->right;
-    }
-    return false;
-}
-
-static void avlDestroy(AVLNode* n) {
-    if (!n) return;
-    avlDestroy(n->left);
-    avlDestroy(n->right);
-    delete n;
-}
-
-// Deepest (max-depth) key in a bucket tree — the genuine worst-case search.
-static void avlDeepest(AVLNode* n, int depth, int& maxDepth, long long& key) {
-    if (!n) return;
-    if (depth > maxDepth) { maxDepth = depth; key = n->data.key; }
-    avlDeepest(n->left, depth + 1, maxDepth, key);
-    avlDeepest(n->right, depth + 1, maxDepth, key);
-}
-
-// ─── Hash Table (AVL-tree chaining) ──────────────────────
+// ─── Hash Table (linked-list chaining) ───────────────────
 struct HashSlot {
-    AVLNode* root;
-    int count;
-    HashSlot() : root(nullptr), count(0) {}
-    ~HashSlot() { avlDestroy(root); }
+    Node* head;
+    int chainLen;
+    HashSlot() : head(nullptr), chainLen(0) {}
+    ~HashSlot() {
+        Node* curr = head;
+        while (curr) {
+            Node* temp = curr->next;
+            delete curr;
+            curr = temp;
+        }
+    }
 };
 
 class HashTable {
@@ -149,15 +78,24 @@ public:
 
     void insert(Record r) {
         int i = hf(r.key);
-        int before = table[i].count;
-        table[i].root = avlInsert(table[i].root, r);
-        // count grows only when a genuinely new key was inserted
-        // (avlInsert returns the same tree on duplicate); recompute cheaply.
-        table[i].count = before + 1; // duplicates are absent in the dataset
+        Node* curr = table[i].head;
+        while (curr) {                      // skip duplicate keys
+            if (curr->data.key == r.key) return;
+            curr = curr->next;
+        }
+        Node* newNode = new Node(r);
+        newNode->next = table[i].head;      // prepend
+        table[i].head = newNode;
+        table[i].chainLen++;
     }
 
     bool search(long long tgt) const {
-        return avlSearch(table[hf(tgt)].root, tgt);
+        Node* curr = table[hf(tgt)].head;
+        while (curr) {
+            if (tgt == curr->data.key) return true;
+            curr = curr->next;
+        }
+        return false;
     }
 };
 
@@ -179,6 +117,12 @@ int nextPrime(int num) {
         if (isPrime(p)) return p;
         p += 2;
     }
+}
+
+// Last node in a chain (the deepest element = worst-case search position).
+long long tailKey(Node* head) {
+    while (head->next) head = head->next;
+    return head->data.key;
 }
 
 vector<Record> loadCSV(const string& fn) {
@@ -222,7 +166,7 @@ int main(int argc, char* argv[]) {
     cout << "Dataset loaded: " << n << " elements" << endl;
 
     // Build hash table (not timed).
-    // Table size = next prime >= n keeps the average bucket load near 1.
+    // Table size = next prime >= n keeps the average chain length near 1.
     int dynamicTableSize = nextPrime(n);
     HashTable ht(dynamicTableSize);
     for (const Record& r : data) ht.insert(r);
@@ -230,21 +174,19 @@ int main(int argc, char* argv[]) {
     // ── Build per-case search key sets (one key per non-empty bucket) ──
     // All three sets are spread across the whole table, so they share the
     // SAME cache behaviour; the only difference is the search DEPTH:
-    //   Best  -> bucket-tree ROOT key    (depth 0,       O(1) comparison)
-    //   Worst -> bucket-tree DEEPEST key (max bucket depth, O(log m))
+    //   Best  -> chain HEAD key  (1 comparison,            O(1))
+    //   Worst -> chain TAIL key  (chainLen comparisons,    O(chainLen))
     //   Avg   -> every dataset key once
     // (If we instead searched a single key repeatedly, that key would stay
     //  hot in cache and read FASTER than the cache-cold average sweep — a
     //  misleading ordering. Spreading every case across all buckets removes
-    //  that artifact so the timing reflects depth, not cache locality.)
+    //  that artifact so the timing reflects chain depth, not cache locality.)
     vector<long long> bestPool, worstPool;
     for (int i = 0; i < dynamicTableSize; i++) {
-        AVLNode* root = ht.table[i].root;
-        if (!root) continue;
-        bestPool.push_back(root->data.key);          // depth 0
-        int d = -1; long long deepKey = root->data.key;
-        avlDeepest(root, 0, d, deepKey);             // deepest node in this bucket
-        worstPool.push_back(deepKey);
+        Node* head = ht.table[i].head;
+        if (!head) continue;
+        bestPool.push_back(head->data.key);   // first node in chain
+        worstPool.push_back(tailKey(head));   // last node in chain
     }
 
     vector<long long> bestKeys(n), avgKeys(n), worstKeys(n);
@@ -259,7 +201,7 @@ int main(int argc, char* argv[]) {
 
     volatile bool dummy = false;
 
-    // ── BEST CASE: n searches over root-depth keys ──
+    // ── BEST CASE: n searches over chain-head keys ──
     auto t0 = high_resolution_clock::now();
     for (int i = 0; i < n; i++) dummy = dummy ^ ht.search(bestKeys[i]);
     auto t1 = high_resolution_clock::now();
@@ -271,7 +213,7 @@ int main(int argc, char* argv[]) {
     auto t3 = high_resolution_clock::now();
     double avgTime = duration<double>(t3 - t2).count();
 
-    // ── WORST CASE: n searches over deepest-depth keys ──
+    // ── WORST CASE: n searches over chain-tail keys ──
     auto t4 = high_resolution_clock::now();
     for (int i = 0; i < n; i++) dummy = dummy ^ ht.search(worstKeys[i]);
     auto t5 = high_resolution_clock::now();
