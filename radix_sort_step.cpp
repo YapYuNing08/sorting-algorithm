@@ -7,7 +7,7 @@
 // Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
 // Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
 // Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
-// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
+// Member_4: 242UC244KC | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
 // *********************************************************
 // Task Distribution
 // Member_1: Radix sort algorithm
@@ -33,7 +33,7 @@ struct Record {
     string    str;
 };
 
-// Read CSV rows [startRow, endRow] (1-indexed) 
+// Read CSV rows [startRow, endRow] (1-indexed)
 // Returns false if file cannot be opened.
 bool loadRows(const string& filename,
               long long startRow, long long endRow,
@@ -76,7 +76,7 @@ void writeSnapshot(ofstream& fout,
     fout << "] " << label << '\n';
 }
 
-// Counting sort on a single decimal digit position 
+// Counting sort on a single decimal digit position
 // digitPos: 1 = units, 2 = tens, ..., 10 = billions place
 void countingSortByDigit(vector<Record>& arr, int digitPos)
 {
@@ -127,16 +127,20 @@ void radixSortStep(vector<Record>& arr, ofstream& fout)
     }
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     // Input: dataset file
     // Uncomment ONE line only. Tutor may specify a different file during demo.
     // string datasetFile = "datasets/dataset_1000.csv";
+    string datasetFile = "datasets/dataset_2000.csv";
     // string datasetFile = "datasets/dataset_10000.csv";
     // string datasetFile = "datasets/dataset_100000.csv";
     // string datasetFile = "datasets/dataset_500000.csv";
     // string datasetFile = "datasets/dataset_1000000.csv";
-    string datasetFile = "datasets/dataset_2000.csv";
+    // string datasetFile = "datasets/dataset_5000000.csv";
+    // string datasetFile = "datasets/dataset_10000000.csv";
+    // string datasetFile = "datasets/dataset_50000000.csv";
+    // string datasetFile = "datasets/dataset_100000000.csv";
 
     // Input: start row (row number in CSV file, 1-indexed)
     // Uncomment ONE line only. Tutor specifies in the code file during demo.
@@ -151,6 +155,12 @@ int main()
     // long long endRow = 10;
     // long long endRow = 20;
     long long endRow = 7;
+
+    // Optional: allow command prompt input to override without recompiling.
+    // Example: radix_sort_step.exe datasets/dataset_1000.csv 1 7
+    if (argc >= 2) datasetFile = argv[1];
+    if (argc >= 3) startRow = atoll(argv[2]);
+    if (argc >= 4) endRow = atoll(argv[3]);
 
     // Load rows
     vector<Record> arr;

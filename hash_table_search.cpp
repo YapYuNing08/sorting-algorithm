@@ -7,13 +7,18 @@
 // Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
 // Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
 // Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
-// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
+// Member_4: 242UC244KC | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
 // *********************************************************
 // Task Distribution
 // Member_1: Radix sort algorithm
 // Member_2: Heap sort algorithm
 // Member_3: Hash table search algorithm
 // Member_4: Dataset generator
+// *********************************************************
+// Collision resolution: SEPARATE CHAINING with a singly linked list per
+// bucket (adapted from the lecturer's HashTable.cpp / LinkedList.cpp).
+// Each bucket is a LinkedList; insert() puts a record at the front of its
+// bucket's list, and retrieve() scans that list comparing the integer key.
 // *********************************************************
 
 #include <iostream>
@@ -23,8 +28,8 @@
 #include <string>
 #include <vector>
 #include <chrono>
-#include <algorithm>
-#include <cstdlib>
+#include <climits>
+#include <cmath>
 #include <direct.h>
 
 using namespace std;
@@ -33,122 +38,89 @@ using namespace chrono;
 #define MAKE_DIR(d) _mkdir(d)
 
 struct Record {
-    long long key;
-    string str;
+    long long key;   // integer field (the search key)
+    string str;      // string field that travels with the key
 };
 
-// ─── AVL Tree ────────────────────────────────────────────
-struct AVLNode {
-    Record data;
-    AVLNode* left;
-    AVLNode* right;
-    int height;
-    AVLNode(Record r) : data(r), left(nullptr), right(nullptr), height(1) {}
+// ─── Linked list (separate-chaining bucket) ──────────────
+// Derived from the lecturer's LinkedList.cpp: a singly linked list with
+// insertFront() and a linear find(). Specialised to store Record and to
+// compare on the integer key.
+struct Node {
+    Record info;
+    Node* next;
 };
 
-int avlH(AVLNode* n) {
-    return n ? n->height : 0;
-}
+class LinkedList {
+private:
+    Node* start;
+public:
+    LinkedList() { start = nullptr; }
+    ~LinkedList() { makeEmpty(); }
 
-void avlUpd(AVLNode* n) {
-    if (n)
-        n->height = 1 + max(avlH(n->left), avlH(n->right));
-}
-
-AVLNode* rotR(AVLNode* y) {
-    AVLNode* x = y->left;
-    AVLNode* T = x->right;
-    x->right = y;
-    y->left = T;
-    avlUpd(y);
-    avlUpd(x);
-    return x;
-}
-
-AVLNode* rotL(AVLNode* x) {
-    AVLNode* y = x->right;
-    AVLNode* T = y->left;
-    y->left = x;
-    x->right = T;
-    avlUpd(x);
-    avlUpd(y);
-    return y;
-}
-
-AVLNode* avlBal(AVLNode* n) {
-    avlUpd(n);
-    int bf = avlH(n->left) - avlH(n->right);
-    if (bf > 1) {
-        if (avlH(n->left->left) < avlH(n->left->right))
-            n->left = rotL(n->left);
-        return rotR(n);
+    // insert at the beginning of the linked list
+    void insertFront(const Record& element) {
+        Node* newNode = new Node;
+        newNode->info = element;
+        newNode->next = start;
+        start = newNode;
     }
-    if (bf < -1) {
-        if (avlH(n->right->right) < avlH(n->right->left))
-            n->right = rotR(n->right);
-        return rotL(n);
+
+    // Linear search along the chain. Returns true if the key is found, and
+    // reports the number of key comparisons performed via cmp (this is the
+    // search-path length used for the best/average/worst analysis).
+    bool find(long long target, int& cmp) const {
+        cmp = 0;
+        Node* ptr = start;
+        while (ptr != nullptr) {
+            cmp++;
+            if (ptr->info.key == target)
+                return true;
+            ptr = ptr->next;
+        }
+        return false;
     }
-    return n;
-}
 
-AVLNode* avlIns(AVLNode* nd, Record r) {
-    if (!nd)
-        return new AVLNode(r);
-    if (r.key < nd->data.key)
-        nd->left = avlIns(nd->left, r);
-    else if (r.key > nd->data.key)
-        nd->right = avlIns(nd->right, r);
-    return avlBal(nd);
-}
-
-bool avlSearch(AVLNode* nd, long long tgt) {
-    while (nd) {
-        if (tgt == nd->data.key)
-            return true;
-        else if (tgt < nd->data.key)
-            nd = nd->left;
-        else
-            nd = nd->right;
+    void makeEmpty() {
+        while (start != nullptr) {
+            Node* ptr = start;
+            start = start->next;
+            delete ptr;
+        }
     }
-    return false;
-}
+};
 
-// Hash Table
+// ─── Hash table with chaining ────────────────────────────
+// Derived from the lecturer's HashTable.cpp: a vector of LinkedList buckets
+// with hashfunction(key) = key % table.size().
 const int TABLE_SIZE = 1000003; // prime
 
-struct HashSlot {
-    AVLNode* root;
-    int chainLen;
-    HashSlot() : root(nullptr), chainLen(0) {}
-};
-
 class HashTable {
+private:
+    vector<LinkedList> table;
 public:
-    HashSlot* table;
+    HashTable(int size) { table.resize(size); }
 
-    HashTable() {
-        table = new HashSlot[TABLE_SIZE];
+    int hashfunction(long long key) const {
+        return (int)(key % (long long)table.size());
     }
 
-    ~HashTable() {
-        delete[] table;
+    int size() const { return (int)table.size(); }
+
+    void insert(const Record& newItem) {
+        int location = hashfunction(newItem.key);
+        table[location].insertFront(newItem);
     }
 
-    int hf(long long k) const {
-        return (int)(k % TABLE_SIZE);
-    }
-
-    void insert(Record r) {
-        int i = hf(r.key);
-        table[i].root = avlIns(table[i].root, r);
-        table[i].chainLen++;
-    }
-
-    bool search(long long tgt) const {
-        int i = hf(tgt);
-        if (!table[i].root)
-            return false;
-        return avlSearch(table[i].root, tgt);
+    // Returns the number of key comparisons a search for target performs
+    // (0 if the bucket is empty). Used both to classify each key's path
+    // length and as the timed workload (the count is accumulated into a
+    // volatile sink so the optimizer cannot delete the search calls).
+    int searchCost(long long target) const {
+        int location = hashfunction(target);
+        int cmp = 0;
+        table[location].find(target, cmp);
+        return cmp;
     }
 };
 
@@ -186,20 +158,7 @@ string fmtTime(double t) {
     return oss.str();
 }
 
-// Fisher-Yates shuffle using rand() (matches dataset_generator seed style)
-void fisherYatesShuffle(vector<long long>& arr) {
-    for (int i = (int)arr.size() - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
-        long long tmp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = tmp;
-    }
-}
-
 int main(int argc, char* argv[]) {
-    // Leader ID: 242UC244KD -> 2421324414
-    srand((unsigned int)2421324414U);
-
     string csvFile = "datasets/dataset_2000.csv";
     if (argc >= 2)
         csvFile = argv[1];
@@ -214,63 +173,63 @@ int main(int argc, char* argv[]) {
     cout << "Dataset loaded: " << n << " elements" << endl;
 
     // Build hash table (not timed)
-    HashTable ht;
+    HashTable ht(TABLE_SIZE);
     for (const Record& r : data)
         ht.insert(r);
 
-    // Identify case keys
-    // Best case : bucket with exactly 1 element (single root hit, O(1))
-    long long bestKey = data[0].key;
+    // ─── Classify each key by its actual search-path length (not timed) ──
+    // For every existing key we compute how many comparisons a successful
+    // search performs. With chaining the cost is the key's position in its
+    // bucket's linked list (1 = at the front of the chain). We then pick one
+    // representative key for each case:
+    //   best    -> shortest path  (minimum comparisons, front of a chain)
+    //   worst   -> longest path   (maximum comparisons, end of longest chain)
+    //   average -> path closest to the mean over all keys
+    // Repeating ONE representative key per case keeps every case equally
+    // cache-hot, so the measured times differ only by path length and the
+    // ordering best <= average <= worst holds by construction.
+    long long bestKey = data[0].key, worstKey = data[0].key, avgKey = data[0].key;
+    int minCost = INT_MAX, maxCost = 0;
+    long long totalCost = 0;
     for (const Record& r : data) {
-        if (ht.table[ht.hf(r.key)].chainLen == 1) {
-            bestKey = r.key;
-            break;
-        }
+        int c = ht.searchCost(r.key);
+        totalCost += c;
+        if (c < minCost) { minCost = c; bestKey = r.key; }
+        if (c > maxCost) { maxCost = c; worstKey = r.key; }
     }
-
-    // Worst case: deepest node in the bucket with the longest chain
-    int maxChain = 0, maxIdx = 0;
-    for (int i = 0; i < TABLE_SIZE; i++) {
-        if (ht.table[i].chainLen > maxChain) {
-            maxChain = ht.table[i].chainLen;
-            maxIdx = i;
-        }
+    double meanCost = (double)totalCost / n;
+    double bestDelta = 1e18;
+    for (const Record& r : data) {
+        double d = fabs((double)ht.searchCost(r.key) - meanCost);
+        if (d < bestDelta) { bestDelta = d; avgKey = r.key; }
     }
-    long long worstKey = 0;
-    {
-        AVLNode* cur = ht.table[maxIdx].root;
-        while (cur) {
-            worstKey = cur->data.key;
-            cur = cur->right;
-        }
-    }
+    cout << "Path length (comparisons)  best=" << minCost
+         << "  avg~=" << meanCost << "  worst=" << maxCost << endl;
 
-    // Average: shuffle all keys for random search order
-    vector<long long> searchKeys(n);
-    for (int i = 0; i < n; i++)
-        searchKeys[i] = data[i].key;
-    fisherYatesShuffle(searchKeys);
+    // volatile sink: forces the optimizer to actually execute every search
+    // (the comparison count is consumed) instead of deleting the loop.
+    volatile long long sink = 0;
 
-    // BEST CASE: n searches on single-element bucket key
+    // BEST CASE: n searches on the shortest-path key
     auto t0 = high_resolution_clock::now();
     for (int i = 0; i < n; i++)
-        ht.search(bestKey);
+        sink += ht.searchCost(bestKey);
     auto t1 = high_resolution_clock::now();
-    double bestTime = duration<double>(t1 - t0).count();
+    double bestTime = duration<double>(t1 - t0).count() / n;
 
-    // AVERAGE CASE: n searches on shuffled existing keys
+    // AVERAGE CASE: n searches on the mean-path key
     auto t2 = high_resolution_clock::now();
     for (int i = 0; i < n; i++)
-        ht.search(searchKeys[i]);
+        sink += ht.searchCost(avgKey);
     auto t3 = high_resolution_clock::now();
-    double avgTime = duration<double>(t3 - t2).count();
+    double avgTime = duration<double>(t3 - t2).count() / n;
 
-    // WORST CASE: n searches on deepest-chain key
+    // WORST CASE: n searches on the longest-path key
     auto t4 = high_resolution_clock::now();
     for (int i = 0; i < n; i++)
-        ht.search(worstKey);
+        sink += ht.searchCost(worstKey);
     auto t5 = high_resolution_clock::now();
-    double worstTime = duration<double>(t5 - t4).count();
+    double worstTime = duration<double>(t5 - t4).count() / n;
 
     // Output
     string base = csvFile;

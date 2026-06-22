@@ -7,7 +7,7 @@
 // Member_1: 242UC244KB | KOK HUEY HUEY | KOK.HUEY.HUEY@student.mmu.edu.my | 0162011560
 // Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
 // Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
-// Member_4: 242UC244KB | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
+// Member_4: 242UC244KC | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
 // *********************************************************
 // Task Distribution
 // Member_1: Radix sort algorithm
@@ -15,12 +15,17 @@
 // Member_3: Hash table search algorithm
 // Member_4: Dataset generator
 // *********************************************************
+// Collision resolution: SEPARATE CHAINING with a singly linked list per
+// bucket (adapted from the lecturer's HashTable.cpp / LinkedList.cpp).
+// This program traces the search path: it hashes the target to a bucket
+// then walks that bucket's linked list, comparing the integer key of each
+// node until the target is found or the chain ends.
+// *********************************************************
 
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <vector>
-#include <cstdint>
 #include <direct.h>
 
 using namespace std;
@@ -28,131 +33,86 @@ using namespace std;
 #define MAKE_DIR(d) _mkdir(d)
 
 struct Record {
-    long long key;
-    string str;
+    long long key;   // integer field (the search key)
+    string str;      // string field that travels with the key
 };
 
-struct AVLNode {
-    Record data;
-    AVLNode* left;
-    AVLNode* right;
-    int height;
-    AVLNode(Record r) : data(r), left(nullptr), right(nullptr), height(1) {}
+// ─── Linked list (separate-chaining bucket) ──────────────
+// Derived from the lecturer's LinkedList.cpp: a singly linked list with
+// insertFront() and a linear search. Here the search logs every comparison
+// so the search path can be shown step by step.
+struct Node {
+    Record info;
+    Node* next;
 };
 
-int avlH(AVLNode* n) {
-    return n ? n->height : 0;
-}
+class LinkedList {
+private:
+    Node* start;
+public:
+    LinkedList() { start = nullptr; }
+    ~LinkedList() { makeEmpty(); }
 
-void avlUpd(AVLNode* n) {
-    if (n)
-        n->height = 1 + max(avlH(n->left), avlH(n->right));
-}
-
-AVLNode* rotR(AVLNode* y) {
-    AVLNode* x = y->left;
-    AVLNode* T = x->right;
-    x->right = y;
-    y->left = T;
-    avlUpd(y);
-    avlUpd(x);
-    return x;
-}
-
-AVLNode* rotL(AVLNode* x) {
-    AVLNode* y = x->right;
-    AVLNode* T = y->left;
-    y->left = x;
-    x->right = T;
-    avlUpd(x);
-    avlUpd(y);
-    return y;
-}
-
-AVLNode* avlBal(AVLNode* n) {
-    avlUpd(n);
-    int bf = avlH(n->left) - avlH(n->right);
-    if (bf > 1) {
-        if (avlH(n->left->left) < avlH(n->left->right))
-            n->left = rotL(n->left);
-        return rotR(n);
+    // insert at the beginning of the linked list
+    void insertFront(const Record& element) {
+        Node* newNode = new Node;
+        newNode->info = element;
+        newNode->next = start;
+        start = newNode;
     }
-    if (bf < -1) {
-        if (avlH(n->right->right) < avlH(n->right->left))
-            n->right = rotR(n->right);
-        return rotL(n);
-    }
-    return n;
-}
 
-AVLNode* avlIns(AVLNode* nd, Record r) {
-    if (!nd)
-        return new AVLNode(r);
-    if (r.key < nd->data.key)
-        nd->left = avlIns(nd->left, r);
-    else if (r.key > nd->data.key)
-        nd->right = avlIns(nd->right, r);
-    return avlBal(nd);
-}
-
-// Search with step logging. Returns true if found.
-bool avlStep(AVLNode* nd, long long tgt, vector<string>& log) {
-    if (!nd)
+    // Walk the chain comparing the integer field of each node. Each step is
+    // appended to log. Returns true if the target is found.
+    //   found:     "target = key/str"
+    //   mismatch:  "key/str != target"   (one line per node compared)
+    bool findStep(long long target, vector<string>& log) const {
+        Node* ptr = start;
+        while (ptr != nullptr) {
+            if (ptr->info.key == target) {
+                log.push_back(to_string(target) + " = " +
+                              to_string(ptr->info.key) + "/" + ptr->info.str);
+                return true;
+            }
+            log.push_back(to_string(ptr->info.key) + "/" + ptr->info.str +
+                          " != " + to_string(target));
+            ptr = ptr->next;
+        }
         return false;
-
-    if (tgt == nd->data.key) {
-        log.push_back(to_string(tgt) + " = " + to_string(nd->data.key) + "/" + nd->data.str);
-        return true;
     }
 
-    log.push_back(to_string(nd->data.key) + "/" + nd->data.str + " != " + to_string(tgt));
+    void makeEmpty() {
+        while (start != nullptr) {
+            Node* ptr = start;
+            start = start->next;
+            delete ptr;
+        }
+    }
+};
 
-    if (tgt < nd->data.key)
-        return avlStep(nd->left, tgt, log);
-    else
-        return avlStep(nd->right, tgt, log);
-}
-
+// ─── Hash table with chaining ────────────────────────────
 const int TABLE_SIZE = 1000003; // prime
 
-struct HashSlot {
-    AVLNode* root;
-    HashSlot() : root(nullptr) {}
-};
-
 class HashTable {
+private:
+    vector<LinkedList> table;
 public:
-    HashSlot* table;
+    HashTable(int size) { table.resize(size); }
 
-    HashTable() {
-        table = new HashSlot[TABLE_SIZE];
+    int hashfunction(long long key) const {
+        return (int)(key % (long long)table.size());
     }
 
-    ~HashTable() {
-        delete[] table;
+    void insert(const Record& newItem) {
+        int location = hashfunction(newItem.key);
+        table[location].insertFront(newItem);
     }
 
-    int hf(long long k) const {
-        return (int)(k % TABLE_SIZE);
-    }
-
-    void insert(Record r) {
-        int i = hf(r.key);
-        table[i].root = avlIns(table[i].root, r);
-    }
-
-    bool search(long long tgt, vector<string>& log, bool& notFoundLogged) const {
-        int idx = hf(tgt);
-        log.push_back("hash(" + to_string(tgt) + ") = " + to_string(idx));
-
-        if (!table[idx].root) {
-            log.push_back("-1 != " + to_string(tgt));
-            notFoundLogged = true;
-            return false;
-        }
-
-        notFoundLogged = false;
-        return avlStep(table[idx].root, tgt, log);
+    // Trace the search for target: log the bucket index, then the walk along
+    // that bucket's chain. Returns true if found.
+    bool searchStep(long long target, vector<string>& log) const {
+        int idx = hashfunction(target);
+        log.push_back("hash(" + to_string(target) + ") = " + to_string(idx));
+        return table[idx].findStep(target, log);
     }
 };
 
@@ -199,13 +159,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    HashTable ht;
+    HashTable ht(TABLE_SIZE);
     for (const Record& r : data)
         ht.insert(r);
 
     vector<string> steps;
-    bool nfl = false;
-    bool found = ht.search(target, steps, nfl);
+    bool found = ht.searchStep(target, steps);
 
     // Build output filename from csv base name
     string base = csvFile;
@@ -225,7 +184,8 @@ int main(int argc, char* argv[]) {
         fout << s << "\n";
     }
 
-    if (!found && !nfl) {
+    // Not found: target absent from the bucket (empty chain or end reached).
+    if (!found) {
         string nf = "-1 != " + to_string(target);
         cout << nf << "\n";
         fout << nf << "\n";
