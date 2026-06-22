@@ -15,10 +15,14 @@
 // Member_3: Hash table search algorithm
 // Member_4: Dataset generator
 // *********************************************************
-// Collision resolution: SEPARATE CHAINING with a singly linked list per
-// bucket (adapted from the lecturer's HashTable.cpp / LinkedList.cpp).
-// Each bucket is a LinkedList; insert() puts a record at the front of its
-// bucket's list, and retrieve() scans that list comparing the integer key.
+// Collision resolution: SEPARATE CHAINING where each bucket is a
+// pointer-based AVL balanced binary search tree (a "linked-list based AVL
+// BST"). insert() places a record into its bucket's AVL tree keyed on the
+// integer field; a search is therefore either a DIRECT hit (key found at the
+// root of the bucket) or a TREE traversal that compares the integer key and
+// goes left/right until the key is found or a null link is reached. Because
+// every bucket tree is height-balanced, the longest search path in a bucket
+// holding m keys is O(log m) instead of O(m) as it would be for a plain list.
 // *********************************************************
 
 #include <iostream>
@@ -42,62 +46,129 @@ struct Record {
     string str;      // string field that travels with the key
 };
 
-// ─── Linked list (separate-chaining bucket) ──────────────
-// Derived from the lecturer's LinkedList.cpp: a singly linked list with
-// insertFront() and a linear find(). Specialised to store Record and to
-// compare on the integer key.
+// ─── AVL balanced BST (separate-chaining bucket) ─────────
+// A pointer-based ("linked") AVL tree specialised to store Record and to
+// order/compare on the integer key. Insertion rebalances with single/double
+// rotations so the tree stays height-balanced. find() walks from the root
+// comparing keys and reports the number of key comparisons performed via
+// cmp (this is the search-path length used for the best/average/worst study).
 struct Node {
     Record info;
-    Node* next;
+    Node* left;
+    Node* right;
+    int height;
 };
 
-class LinkedList {
+class AVLTree {
 private:
-    Node* start;
-public:
-    LinkedList() { start = nullptr; }
-    ~LinkedList() { makeEmpty(); }
+    Node* root;
 
-    // insert at the beginning of the linked list
-    void insertFront(const Record& element) {
-        Node* newNode = new Node;
-        newNode->info = element;
-        newNode->next = start;
-        start = newNode;
+    int height(Node* n) const { return n ? n->height : 0; }
+
+    int balanceFactor(Node* n) const {
+        return n ? height(n->left) - height(n->right) : 0;
     }
 
-    // Linear search along the chain. Returns true if the key is found, and
-    // reports the number of key comparisons performed via cmp (this is the
-    // search-path length used for the best/average/worst analysis).
+    void updateHeight(Node* n) {
+        int hl = height(n->left), hr = height(n->right);
+        n->height = 1 + (hl > hr ? hl : hr);
+    }
+
+    Node* rotateRight(Node* y) {
+        Node* x = y->left;
+        Node* t2 = x->right;
+        x->right = y;
+        y->left = t2;
+        updateHeight(y);
+        updateHeight(x);
+        return x;
+    }
+
+    Node* rotateLeft(Node* x) {
+        Node* y = x->right;
+        Node* t2 = y->left;
+        y->left = x;
+        x->right = t2;
+        updateHeight(x);
+        updateHeight(y);
+        return y;
+    }
+
+    Node* insertNode(Node* node, const Record& element) {
+        if (node == nullptr) {
+            Node* newNode = new Node;
+            newNode->info = element;
+            newNode->left = newNode->right = nullptr;
+            newNode->height = 1;
+            return newNode;
+        }
+        if (element.key < node->info.key)
+            node->left = insertNode(node->left, element);
+        else if (element.key > node->info.key)
+            node->right = insertNode(node->right, element);
+        else
+            return node; // duplicate key: ignore
+
+        updateHeight(node);
+        int bf = balanceFactor(node);
+
+        // Left-Left
+        if (bf > 1 && element.key < node->left->info.key)
+            return rotateRight(node);
+        // Right-Right
+        if (bf < -1 && element.key > node->right->info.key)
+            return rotateLeft(node);
+        // Left-Right
+        if (bf > 1 && element.key > node->left->info.key) {
+            node->left = rotateLeft(node->left);
+            return rotateRight(node);
+        }
+        // Right-Left
+        if (bf < -1 && element.key < node->right->info.key) {
+            node->right = rotateRight(node->right);
+            return rotateLeft(node);
+        }
+        return node;
+    }
+
+    void destroy(Node* n) {
+        if (n) {
+            destroy(n->left);
+            destroy(n->right);
+            delete n;
+        }
+    }
+
+public:
+    AVLTree() : root(nullptr) {}
+    ~AVLTree() { destroy(root); }
+
+    void insert(const Record& element) { root = insertNode(root, element); }
+
+    // Tree search. Returns true if the key is found, and reports the number of
+    // key comparisons performed via cmp (1 = direct hit at the root).
     bool find(long long target, int& cmp) const {
         cmp = 0;
-        Node* ptr = start;
+        Node* ptr = root;
         while (ptr != nullptr) {
             cmp++;
-            if (ptr->info.key == target)
+            if (target == ptr->info.key)
                 return true;
-            ptr = ptr->next;
+            else if (target < ptr->info.key)
+                ptr = ptr->left;
+            else
+                ptr = ptr->right;
         }
         return false;
     }
-
-    void makeEmpty() {
-        while (start != nullptr) {
-            Node* ptr = start;
-            start = start->next;
-            delete ptr;
-        }
-    }
 };
 
-// ─── Hash table with chaining ────────────────────────────
-// Derived from the lecturer's HashTable.cpp: a vector of LinkedList buckets
-// with hashfunction(key) = key % table.size().
-const int TABLE_SIZE = 1000003; // prime
-
+// ─── Hash table with AVL-tree buckets ────────────────────
+// A vector of AVLTree buckets with hashfunction(key) = key % table.size().
+// The table size is the next prime >= n so the average load factor stays ~1.
 class HashTable {
 private:
-    vector<LinkedList> table;
+    vector<AVLTree> table;
 public:
     HashTable(int size) { table.resize(size); }
 
@@ -109,7 +180,7 @@ public:
 
     void insert(const Record& newItem) {
         int location = hashfunction(newItem.key);
-        table[location].insertFront(newItem);
+        table[location].insert(newItem);
     }
 
     // Returns the number of key comparisons a search for target performs
@@ -123,6 +194,27 @@ public:
         return cmp;
     }
 };
+
+// Helper: primality test, used to size the table to the next prime >= n.
+bool isPrime(int num) {
+    if (num <= 1) return false;
+    if (num <= 3) return true;
+    if (num % 2 == 0 || num % 3 == 0) return false;
+    for (int i = 5; i * i <= num; i += 6) {
+        if (num % i == 0 || num % (i + 2) == 0) return false;
+    }
+    return true;
+}
+
+int nextPrime(int num) {
+    if (num <= 2) return 2;
+    int p = num;
+    if (p % 2 == 0) p++;
+    while (true) {
+        if (isPrime(p)) return p;
+        p += 2;
+    }
+}
 
 // Load CSV
 vector<Record> loadCSV(const string& fn) {
@@ -172,18 +264,20 @@ int main(int argc, char* argv[]) {
     int n = (int)data.size();
     cout << "Dataset loaded: " << n << " elements" << endl;
 
-    // Build hash table (not timed)
-    HashTable ht(TABLE_SIZE);
+    // Build hash table (not timed). Table size = next prime >= n keeps the
+    // average load factor ~1 so most buckets are small balanced trees.
+    int tableSize = nextPrime(n);
+    HashTable ht(tableSize);
     for (const Record& r : data)
         ht.insert(r);
 
     // ─── Classify each key by its actual search-path length (not timed) ──
     // For every existing key we compute how many comparisons a successful
-    // search performs. With chaining the cost is the key's position in its
-    // bucket's linked list (1 = at the front of the chain). We then pick one
+    // search performs. With AVL-tree buckets the cost is the key's depth in
+    // its bucket tree (1 = direct hit at the root). We then pick one
     // representative key for each case:
-    //   best    -> shortest path  (minimum comparisons, front of a chain)
-    //   worst   -> longest path   (maximum comparisons, end of longest chain)
+    //   best    -> shortest path  (minimum comparisons, root of a bucket)
+    //   worst   -> longest path   (maximum comparisons, deepest tree node)
     //   average -> path closest to the mean over all keys
     // Repeating ONE representative key per case keeps every case equally
     // cache-hot, so the measured times differ only by path length and the
@@ -203,7 +297,8 @@ int main(int argc, char* argv[]) {
         double d = fabs((double)ht.searchCost(r.key) - meanCost);
         if (d < bestDelta) { bestDelta = d; avgKey = r.key; }
     }
-    cout << "Path length (comparisons)  best=" << minCost
+    cout << "Table size = " << tableSize
+         << "  |  path length (comparisons)  best=" << minCost
          << "  avg~=" << meanCost << "  worst=" << maxCost << endl;
 
     // volatile sink: forces the optimizer to actually execute every search

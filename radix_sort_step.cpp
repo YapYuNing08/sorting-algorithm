@@ -1,4 +1,4 @@
-// *********************************************************
+// *******************
 // Program: radix_sort_step.cpp
 // Course: CCP6214 Algorithm Design and Analysis
 // Lecture Class: TC2L
@@ -8,13 +8,13 @@
 // Member_2: 242UC244KD | LIM JOEY | LIM.JOEY@student.mmu.edu.my | 0192270150
 // Member_3: 242UC242LB | YAP SHEN YEE | YAP.SHEN.YEE@student.mmu.edu.my | 0162897881
 // Member_4: 242UC244KC | YAP YU NING | YAP.YU.NING@student.mmu.edu.my | 0122293817
-// *********************************************************
+// *******************
 // Task Distribution
 // Member_1: Radix sort algorithm
 // Member_2: Heap sort algorithm
 // Member_3: Hash table search algorithm
 // Member_4: Dataset generator
-// *********************************************************
+// *******************
 
 #include <iostream>
 #include <fstream>
@@ -189,10 +189,10 @@ int main(int argc, char* argv[])
     }
 
     // Build output filename:
-    // outputs/dataset_<n>_radix_sorted_step_<startRow>_<endRow>.txt
+    // outputs/dataset_<n>radix_sorted_step<startRow>_<endRow>.txt
     MAKE_DIR("outputs");
     string outName = "outputs/dataset_" + to_string(n)
-                   + "_radix_sorted_step_"
+                   + "radix_sorted_step"
                    + to_string(startRow) + "_"
                    + to_string(endRow) + ".txt";
 
